@@ -1,0 +1,3 @@
+- `npm run dev` - runs dev environment
+- `npm run build` - compiles typescript files to dist/
+- `npm start` - starts builded server from dist/index.js

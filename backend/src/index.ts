@@ -16,7 +16,7 @@ redisClient.connect().catch(console.error);
 app.use(express.json());
 
 app.get("/health", (req, res) => {
-  res.json({ status: "ok bro gegegagagugu" });
+  res.json({ status: "ok!" });
 });
 
 app.listen(PORT, () => {

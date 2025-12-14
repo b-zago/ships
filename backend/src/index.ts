@@ -11,6 +11,7 @@ import {
   setPlayerBToken,
   validateToken,
 } from "./redis.js";
+import { setupSocketHandlers } from "./socketHandler.js";
 
 const app = express();
 app.use(cookieParser());
@@ -26,8 +27,6 @@ const io = new Server(server, {
     credentials: true,
   },
 });
-
-const lobbies = new Map();
 
 redisClient.connect().catch(console.error);
 
@@ -98,13 +97,12 @@ app.post("/api/lobby/create", async (req, res) => {
   }
 });
 
-app.get("/lobby/join/:lobbyid", async (req, res) => {
+app.get("/api/lobby/join/:lobbyid", async (req, res) => {
   const lobbyId = req.params.lobbyid;
-
   let token = req.cookies.token;
 
   if (token) {
-    //go to game here
+    //go to game here and also determine which player connected by token
     return res.json({
       status: "ok!",
     });
@@ -151,38 +149,12 @@ app.get("/lobby/join/:lobbyid", async (req, res) => {
   });
 });
 
-io.use((socket, next) => {
-  // Parse cookies
-  const cookies = socket.handshake.headers.cookie;
-  const parsedCookies = Object.fromEntries(
-    cookies?.split("; ").map((c) => c.split("=")) || []
-  );
-
-  const token = parsedCookies.token;
-  const lobbyId = parsedCookies.lobbyId;
-
-  // Validate token
-  if (!token) {
-    return next(new Error("Authentication required"));
-  }
-
-  // Check if token is valid (check against your lobbies/database)
-  const isValid = validateToken(token, lobbyId); // Your validation logic
-
-  if (!isValid) {
-    return next(new Error("Invalid token"));
-  }
-
-  // Attach user data to socket for later use
-  socket.data.token = token;
-
-  next(); // Allow connection
-});
+setupSocketHandlers(io);
 
 app.get("/health", (req, res) => {
   res.json({ status: "ok!" });
 });
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

@@ -1,14 +1,14 @@
 import { Route, Routes } from "react-router-dom";
 
 import Home from "./routes/Home";
-import Lobby from "./routes/Lobby";
+import GameController from "./routes/GameController";
 
 function App() {
   return (
     <>
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/lobby/:id" element={<Lobby />} />
+        <Route path="/lobby/:id" element={<GameController />} />
       </Routes>
     </>
   );

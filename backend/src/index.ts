@@ -1,4 +1,5 @@
 import express from "express";
+import cors from "cors";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import crypto from "crypto";
@@ -14,7 +15,6 @@ import {
 import { setupSocketHandlers } from "./socketHandler.js";
 
 const app = express();
-app.use(cookieParser());
 const PORT = process.env.PORT || 3000;
 
 //http server
@@ -30,6 +30,13 @@ const io = new Server(server, {
 
 redisClient.connect().catch(console.error);
 
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+    credentials: true,
+  })
+);
+app.use(cookieParser());
 app.use(express.json());
 
 async function generateLobbyId() {
@@ -56,7 +63,7 @@ app.post("/api/lobby/create", async (req, res) => {
     const lobbyId = await generateLobbyId();
 
     const token = crypto.randomBytes(32).toString("hex");
-    const lobby = {
+    const lobby: Lobby = {
       id: lobbyId,
       playerAToken: token,
       playerBToken: "",
@@ -64,7 +71,9 @@ app.post("/api/lobby/create", async (req, res) => {
       playerBShips: [],
       playerAHits: [],
       playerBHits: [],
-      status: "Preparing",
+      playerAReady: "0",
+      playerBReady: "0",
+      preparation: "1",
     };
 
     //lobbies.set(lobbyId, { playerA: token });
@@ -76,18 +85,21 @@ app.post("/api/lobby/create", async (req, res) => {
       maxAge: 7200000, // milliseconds
       httpOnly: true,
       secure: true,
-      sameSite: "strict",
+      sameSite: "lax",
     });
 
     res.cookie("lobbyId", lobbyId, {
       maxAge: 7200000, // milliseconds
       httpOnly: true,
       secure: true,
-      sameSite: "strict",
+      sameSite: "lax",
     });
 
+    // res.json({
+    //   url: `${req.protocol}://${req.get("host")}/game/${lobbyId}`,
+    // });
     res.json({
-      url: `${req.protocol}://${req.get("host")}/game/${lobbyId}`,
+      url: `${req.protocol}://localhost:5173/game/${lobbyId}`,
     });
   } catch (error) {
     console.error("Error creating lobby:", error);
@@ -100,15 +112,22 @@ app.post("/api/lobby/create", async (req, res) => {
 app.get("/api/lobby/join/:lobbyid", async (req, res) => {
   const lobbyId = req.params.lobbyid;
   let token = req.cookies.token;
+  const cookieLobbyId = req.cookies.lobbyId;
 
-  if (token) {
-    //go to game here and also determine which player connected by token
+  console.log("cookies token:", token);
+
+  const isTokenValidated = await validateToken(cookieLobbyId, token);
+
+  if (isTokenValidated) {
+    console.log("token validated!");
     return res.json({
       status: "ok!",
     });
   }
 
-  if (await !redisClient.exists(`lobby:${lobbyId}`)) {
+  const isLobbyReal = await redisClient.exists(`lobby:${lobbyId}`);
+
+  if (!isLobbyReal) {
     return res.json({
       status: "error",
       message: "There is no lobby of this ID!",
@@ -116,6 +135,8 @@ app.get("/api/lobby/join/:lobbyid", async (req, res) => {
   }
 
   const lobbyTokens = await getLobbyTokens(lobbyId);
+
+  console.log("tokens:", lobbyTokens);
 
   // Check if lobby is full
   if (lobbyTokens.playerAToken && lobbyTokens.playerBToken) {
@@ -131,17 +152,19 @@ app.get("/api/lobby/join/:lobbyid", async (req, res) => {
     maxAge: 7200000, // milliseconds
     httpOnly: true,
     secure: true,
-    sameSite: "strict",
+    sameSite: "lax",
   });
 
   res.cookie("lobbyId", lobbyId, {
     maxAge: 7200000, // milliseconds
     httpOnly: true,
     secure: true,
-    sameSite: "strict",
+    sameSite: "lax",
   });
 
   await setPlayerBToken(lobbyId, token);
+
+  console.log("new player!");
 
   res.json({
     //go to game here

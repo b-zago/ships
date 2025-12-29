@@ -1,5 +1,5 @@
-import type { Lobby } from "./types.js";
 import { createClient } from "redis";
+import type { Lobby } from "./types.js";
 
 export const redisClient = createClient({
   socket: {
@@ -17,6 +17,7 @@ export async function saveLobby(lobby: Lobby): Promise<void> {
     playerBShips: JSON.stringify(lobby.playerBShips),
     playerAHits: JSON.stringify(lobby.playerAHits),
     playerBHits: JSON.stringify(lobby.playerBHits),
+    preparation: lobby.preparation,
   });
 
   // Expiration
@@ -38,7 +39,9 @@ export async function getLobby(lobbyId: string): Promise<Lobby | null> {
     playerBShips: JSON.parse(data.playerBShips || "[]"),
     playerAHits: JSON.parse(data.playerAHits || "[]"),
     playerBHits: JSON.parse(data.playerBHits || "[]"),
-    status: data.status as any,
+    playerAReady: data.preparation as "0" | "1",
+    playerBReady: data.preparation as "0" | "1",
+    preparation: data.preparation as "0" | "1",
   };
 }
 

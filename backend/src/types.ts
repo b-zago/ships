@@ -1,7 +1,8 @@
 export type Ship = {
-  vertical: boolean;
-  x: number;
-  y: number;
+  id: number;
+  name: string;
+  length: number;
+  color: string;
 };
 
 export type Hit = {
@@ -17,5 +18,17 @@ export type Lobby = {
   playerBShips: Ship[] | [];
   playerAHits: Hit[] | [];
   playerBHits: Hit[] | [];
-  status: string;
+  playerAReady: "0" | "1";
+  playerBReady: "0" | "1";
+  preparation: "0" | "1";
+};
+
+export type PlacedShip = Ship & {
+  cells: Cell[];
+  isHorizontal: boolean;
+};
+
+export type Cell = {
+  row: number;
+  col: number;
 };

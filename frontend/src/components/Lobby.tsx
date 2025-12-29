@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type SetStateAction } from "react";
 
 const GRID_SIZE = 10;
 const CELL_SIZE = 40;
@@ -20,6 +20,12 @@ interface Cell {
   col: number;
 }
 
+interface LobbyProps {
+  placedShips: PlacedShip[];
+  setPlacedShips: React.Dispatch<SetStateAction<PlacedShip[]>>;
+  confirmShips: () => void;
+}
+
 const SHIPS: Ship[] = [
   { id: 1, name: "Carrier", length: 5, color: "bg-blue-500" },
   { id: 2, name: "Battleship", length: 4, color: "bg-green-500" },
@@ -28,10 +34,10 @@ const SHIPS: Ship[] = [
   { id: 5, name: "Destroyer", length: 2, color: "bg-red-500" },
 ];
 
-function Lobby() {
+function Lobby({ placedShips, setPlacedShips, confirmShips }: LobbyProps) {
   const [selectedShip, setSelectedShip] = useState<number | null>(null);
   const [isHorizontal, setIsHorizontal] = useState<boolean>(true);
-  const [placedShips, setPlacedShips] = useState<PlacedShip[]>([]);
+
   const [hoveredCell, setHoveredCell] = useState<Cell | null>(null);
 
   useEffect(() => {
@@ -300,7 +306,10 @@ function Lobby() {
               </p>
             </div>
             {placedShips.length === SHIPS.length && (
-              <button className="w-full mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded transition-colors">
+              <button
+                className="w-full mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded transition-colors"
+                onClick={confirmShips}
+              >
                 Ready to Battle!
               </button>
             )}

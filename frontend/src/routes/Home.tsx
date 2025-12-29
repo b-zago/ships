@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import axios from "axios";
 import { Anchor, Users, Zap } from "lucide-react";
 
 export default function ShipsLanding() {
@@ -9,12 +10,27 @@ export default function ShipsLanding() {
     setIsGenerating(true);
 
     // Simulate URL generation
-    setTimeout(() => {
-      const lobbyId = Math.random().toString(36).substring(2, 10);
-      const url = `${window.location.origin}/game/${lobbyId}`;
-      setGameUrl(url);
-      setIsGenerating(false);
-    }, 800);
+    // setTimeout(() => {
+    //   const lobbyId = Math.random().toString(36).substring(2, 10);
+    //   const url = `${window.location.origin}/game/${lobbyId}`;
+    //   setGameUrl(url);
+    //   setIsGenerating(false);
+    // }, 800);
+
+    axios
+      .post<{ url: string }>(
+        "http://localhost:3000/api/lobby/create",
+        {},
+        { withCredentials: true }
+      )
+      .then((response) => {
+        console.log("Success:", response.data);
+        setGameUrl(response.data.url);
+        setIsGenerating(false);
+      })
+      .catch((error) => {
+        console.error("Error:", error);
+      });
   };
 
   const copyToClipboard = () => {

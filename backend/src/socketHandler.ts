@@ -1,5 +1,6 @@
 import type { DefaultEventsMap, Server } from "socket.io";
-import { getLobbyTokens, validateToken } from "./redis.js";
+import { getLobbyTokens, redisClient, validateToken } from "./redis.js";
+import type { PlacedShip } from "./types.js";
 
 export function setupSocketHandlers(
   io: Server<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>
@@ -47,7 +48,9 @@ export function setupSocketHandlers(
     const lobbyTokens = await getLobbyTokens(lobbyId);
     const isPlayerA = token === lobbyTokens.playerAToken;
 
-    socket.data.player = isPlayerA ? "A" : "B";
+    const playerPrefix = isPlayerA ? "playerA" : "playerB";
+    const enemyPrefix = isPlayerA ? "playerB" : "playerA";
+    socket.data.player = playerPrefix.charAt(6);
 
     // Notify other players in the lobby
     socket.to(lobbyId).emit("player-joined", {
@@ -55,9 +58,27 @@ export function setupSocketHandlers(
     });
 
     // Handle ship placement
-    socket.on("place-ships", async (ships) => {
-      // Save ships to Redis
+    socket.on("place-ships", async (ships: PlacedShip[]) => {
+      //validate if correct ships here
+      // Save ships to Redis if correct
+      await redisClient.hSet(
+        `lobby:${lobbyId}`,
+        `${playerPrefix}Ships`,
+        JSON.stringify(ships)
+      );
+
+      await redisClient.hSet(`lobby:${lobbyId}`, `${playerPrefix}Ready`, "1");
       // Update lobby status if both players ready
+      const isEnemyReady = await redisClient.hGet(
+        `lobby:${lobbyId}`,
+        `${enemyPrefix}Ready`
+      );
+
+      if (isEnemyReady === "1") {
+        await redisClient.hSet(`lobby:${lobbyId}`, "preparation", "0");
+        io.to(lobbyId).emit("start-game");
+        console.log("start game!");
+      }
     });
 
     // Handle attacks

@@ -17,6 +17,8 @@ export async function saveLobby(lobby: Lobby): Promise<void> {
     playerBShips: JSON.stringify(lobby.playerBShips),
     playerAHits: JSON.stringify(lobby.playerAHits),
     playerBHits: JSON.stringify(lobby.playerBHits),
+    playerASunk: JSON.stringify(lobby.playerASunk),
+    playerBSunk: JSON.stringify(lobby.playerBSunk),
     playerTurn: lobby.playerTurn,
     playerAReady: lobby.playerAReady,
     playerBReady: lobby.playerBReady,
@@ -25,28 +27,6 @@ export async function saveLobby(lobby: Lobby): Promise<void> {
 
   // Expiration
   await redisClient.expire(`lobby:${lobby.id}`, 3600);
-}
-
-export async function getLobby(lobbyId: string): Promise<Lobby | null> {
-  const data = await redisClient.hGetAll(`lobby:${lobbyId}`);
-
-  if (!data || Object.keys(data).length === 0) {
-    return null;
-  }
-
-  return {
-    id: lobbyId,
-    playerAToken: data.playerAToken,
-    playerBToken: data.playerBToken,
-    playerAShips: JSON.parse(data.playerAShips || "[]"),
-    playerBShips: JSON.parse(data.playerBShips || "[]"),
-    playerAHits: JSON.parse(data.playerAHits || "[]"),
-    playerBHits: JSON.parse(data.playerBHits || "[]"),
-    playerTurn: data.playerTurn as "A" | "B",
-    playerAReady: data.playerAReady as "0" | "1",
-    playerBReady: data.playerBReady as "0" | "1",
-    preparation: data.preparation as "0" | "1",
-  };
 }
 
 export async function getLobbyInfo(lobbyId: string) {
@@ -61,12 +41,16 @@ export async function getLobbyInfo(lobbyId: string) {
   const playerAHits = await redisClient.hGet(`lobby:${lobbyId}`, "playerAHits");
   const playerBHits = await redisClient.hGet(`lobby:${lobbyId}`, "playerBHits");
   const playerTurn = await redisClient.hGet(`lobby:${lobbyId}`, "playerTurn");
+  const playerASunk = await redisClient.hGet(`lobby:${lobbyId}`, "playerASunk");
+  const playerBSunk = await redisClient.hGet(`lobby:${lobbyId}`, "playerBSunk");
 
   return {
     playerAShips: JSON.parse(playerAShips || "[]"),
     playerBShips: JSON.parse(playerBShips || "[]"),
     playerAHits: JSON.parse(playerAHits || "[]"),
     playerBHits: JSON.parse(playerBHits || "[]"),
+    playerASunk: JSON.parse(playerASunk || "[]"),
+    playerBSunk: JSON.parse(playerBSunk || "[]"),
     playerTurn,
   };
 }

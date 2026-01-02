@@ -68,6 +68,12 @@ type HitData = {
   player: "A" | "B";
 };
 
+type SunkData = {
+  shipCells: Cell[];
+  ship: string;
+  player: "A" | "B";
+};
+
 function GameController() {
   const { id } = useParams();
 
@@ -80,6 +86,7 @@ function GameController() {
   const [enemyHits, setEnemyHits] = useState<HitsEnum[][]>(defaultHits);
   const [playerHits, setPlayerHits] = useState<HitsEnum[][]>(defaultHits);
   const [placedShips, setPlacedShips] = useState<PlacedShip[]>([]);
+  const [gameEnded, setGameEnded] = useState<null | "A" | "B">(null);
 
   const playerRef = useRef("");
 
@@ -178,14 +185,12 @@ function GameController() {
 
         newSocket.on("hit", (hit: HitData) => {
           if (hit.player === playerRef.current) {
-            // I got hit - update MY board (playerHits)
             setEnemyHits((prev) => {
               const newHits = prev.map((row) => [...row]);
               newHits[hit.cell.row][hit.cell.col] = HitsEnum.Hit;
               return newHits;
             });
           } else {
-            // Enemy got hit - update ENEMY board (enemyHits)
             setPlayerHits((prev) => {
               const newHits = prev.map((row) => [...row]);
               newHits[hit.cell.row][hit.cell.col] = HitsEnum.Hit;
@@ -196,20 +201,42 @@ function GameController() {
 
         newSocket.on("miss", (hit: HitData) => {
           if (hit.player === playerRef.current) {
-            // I got hit - update MY board (playerHits)
             setEnemyHits((prev) => {
               const newHits = prev.map((row) => [...row]);
               newHits[hit.cell.row][hit.cell.col] = HitsEnum.Miss;
               return newHits;
             });
           } else {
-            // Enemy got hit - update ENEMY board (enemyHits)
             setPlayerHits((prev) => {
               const newHits = prev.map((row) => [...row]);
               newHits[hit.cell.row][hit.cell.col] = HitsEnum.Miss;
               return newHits;
             });
           }
+        });
+
+        newSocket.on("sunk", (sunk: SunkData) => {
+          if (sunk.player === playerRef.current) {
+            setEnemyHits((prev) => {
+              const newHits = prev.map((row) => [...row]);
+              sunk.shipCells.forEach((cell: Cell) => {
+                newHits[cell.row][cell.col] = HitsEnum.Ship;
+              });
+              return newHits;
+            });
+          } else {
+            setPlayerHits((prev) => {
+              const newHits = prev.map((row) => [...row]);
+              sunk.shipCells.forEach((cell: Cell) => {
+                newHits[cell.row][cell.col] = HitsEnum.Ship;
+              });
+              return newHits;
+            });
+          }
+        });
+
+        newSocket.on("game-end", (player: "A" | "B") => {
+          setGameEnded(player);
         });
 
         setSocket(newSocket);
@@ -277,23 +304,36 @@ function GameController() {
     );
   }
 
-  if (gameStarted) {
-    return (
-      <Game
-        placedShips={placedShips}
-        onEnemyCellClick={onEnemyCellClick}
-        isPlayerTurn={isPlayerTurn}
-        playerHits={playerHits}
-        enemyHits={enemyHits}
-      />
-    );
-  }
   return (
-    <Lobby
-      placedShips={placedShips}
-      setPlacedShips={setPlacedShips}
-      confirmShips={confirmShips}
-    />
+    <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-b from-slate-900 to-slate-800 relative overflow-hidden">
+      {gameEnded && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-slate-800 p-8 rounded-lg border-2 border-slate-700 shadow-xl text-center space-y-6">
+            <p className="text-3xl font-bold text-white">
+              {gameEnded === playerRef.current ? "You Win!" : "You Lost!"}
+            </p>
+            <button className="px-8 py-3 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded border-2 border-slate-600 transition-colors">
+              OK
+            </button>
+          </div>
+        </div>
+      )}
+      {gameStarted ? (
+        <Game
+          placedShips={placedShips}
+          onEnemyCellClick={onEnemyCellClick}
+          isPlayerTurn={isPlayerTurn}
+          playerHits={playerHits}
+          enemyHits={enemyHits}
+        />
+      ) : (
+        <Lobby
+          placedShips={placedShips}
+          setPlacedShips={setPlacedShips}
+          confirmShips={confirmShips}
+        />
+      )}
+    </div>
   );
 }
 

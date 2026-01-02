@@ -42,6 +42,14 @@ app.use(
 app.use(cookieParser());
 app.use(express.json());
 
+app.use((req, res, next) => {
+  res.setHeader(
+    "Cache-Control",
+    "no-store, no-cache, must-revalidate, private"
+  );
+  next();
+});
+
 async function generateLobbyId() {
   let lobbyId;
   const maxAttempts = 5;
@@ -74,6 +82,8 @@ app.post("/api/lobby/create", async (req, res) => {
       playerBShips: [],
       playerAHits: [],
       playerBHits: [],
+      playerASunk: [],
+      playerBSunk: [],
       playerTurn: "A",
       playerAReady: "0",
       playerBReady: "0",
@@ -147,11 +157,13 @@ app.get("/api/lobby/join/:lobbyid", async (req, res) => {
           playerShips: gameInfo.playerAShips,
           playerHits: generateHitBoard(
             gameInfo.playerBHits,
-            gameInfo.playerAShips
+            gameInfo.playerAShips,
+            gameInfo.playerASunk
           ),
           enemyHits: generateHitBoard(
             gameInfo.playerAHits,
-            gameInfo.playerBShips
+            gameInfo.playerBShips,
+            gameInfo.playerBSunk
           ),
           playerTurn: gameInfo.playerTurn,
           player: "A",
@@ -163,11 +175,13 @@ app.get("/api/lobby/join/:lobbyid", async (req, res) => {
           playerShips: gameInfo.playerBShips,
           playerHits: generateHitBoard(
             gameInfo.playerAHits,
-            gameInfo.playerBShips
+            gameInfo.playerBShips,
+            gameInfo.playerBSunk
           ),
           enemyHits: generateHitBoard(
             gameInfo.playerBHits,
-            gameInfo.playerAShips
+            gameInfo.playerAShips,
+            gameInfo.playerASunk
           ),
           playerTurn: gameInfo.playerTurn,
           player: "B",

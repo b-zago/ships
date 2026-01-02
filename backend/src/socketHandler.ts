@@ -106,6 +106,11 @@ export function setupSocketHandlers(
           `${playerPrefix}Hits`
         );
 
+        const currentSunksStr = await redisClient.hGet(
+          `lobby:${lobbyId}`,
+          `${enemyPrefix}Sunk`
+        );
+
         const attackResult = await verifyAttack(
           lobbyId,
           cell,
@@ -119,15 +124,36 @@ export function setupSocketHandlers(
           //emit error event here
         }
 
-        if (attackResult.hit) {
+        if (attackResult.hit && !attackResult.sunk) {
           console.log(`Hit ${attackResult.shipName}!`);
           //emit hit event here
           io.to(lobbyId).emit("hit", { cell, player });
-          if (attackResult.sunk) {
-            console.log(`${attackResult.shipName} has been sunk!`);
-            //emit sunk event here
-            io.to(lobbyId).emit("sunk", { ship: attackResult.shipName });
-            //add some logic of counting sunken ships somehow (maybe just in redis?)
+        } else if (attackResult.sunk) {
+          console.log(`${attackResult.shipName} has been sunk!`);
+          //emit sunk event here
+          const currentSunks: number[] = currentSunksStr
+            ? JSON.parse(currentSunksStr)
+            : [];
+
+          currentSunks.push(attackResult.shipId!); //fix types here later
+
+          await redisClient.hSet(
+            `lobby:${lobbyId}`,
+            `${enemyPrefix}Sunk`,
+            JSON.stringify(currentSunks)
+          );
+          io.to(lobbyId).emit("sunk", {
+            ship: attackResult.shipName,
+            shipCells: attackResult.shipCells,
+            player,
+          });
+
+          //game end
+          if (currentSunks.length === 5) {
+            io.to(lobbyId).emit("game-end", player);
+            //clean redis ofc
+            await redisClient.del(`lobby:${lobbyId}`);
+            return;
           }
         } else {
           console.log("Miss!");

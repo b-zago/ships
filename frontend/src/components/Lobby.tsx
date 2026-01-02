@@ -191,143 +191,141 @@ function Lobby({ placedShips, setPlacedShips, confirmShips }: LobbyProps) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-b from-slate-900 to-slate-800 relative overflow-hidden">
-      <div className="flex gap-8 items-start">
-        {/* Left - Ships Selection */}
-        <div className="bg-slate-800 p-6 rounded-lg border-2 border-slate-700 shadow-xl">
-          <h2 className="text-2xl font-bold text-white mb-4">Your Fleet</h2>
-          <div className="space-y-4">
-            {SHIPS.map((ship) => (
-              <div key={ship.id} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-white text-sm">{ship.name}</p>
-                  {isShipPlaced(ship.id) && (
-                    <span className="text-green-400 text-lg">✓</span>
-                  )}
-                </div>
-                <button
-                  onClick={() => handleShipSelect(ship.id)}
-                  className={`relative ${
-                    selectedShip === ship.id
-                      ? "ring-4 ring-yellow-400"
-                      : "hover:ring-2 ring-slate-500"
-                  } transition-all`}
-                >
-                  <div className="flex gap-0.5">
-                    {Array.from({ length: ship.length }).map((_, i) => (
-                      <div
-                        key={i}
-                        className={`w-10 h-10 ${ship.color} border border-slate-900`}
-                      />
-                    ))}
-                  </div>
-                </button>
+    <div className="flex gap-8 items-start">
+      {/* Left - Ships Selection */}
+      <div className="bg-slate-800 p-6 rounded-lg border-2 border-slate-700 shadow-xl">
+        <h2 className="text-2xl font-bold text-white mb-4">Your Fleet</h2>
+        <div className="space-y-4">
+          {SHIPS.map((ship) => (
+            <div key={ship.id} className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-white text-sm">{ship.name}</p>
+                {isShipPlaced(ship.id) && (
+                  <span className="text-green-400 text-lg">✓</span>
+                )}
               </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Center - Game Board */}
-        <div className="bg-slate-800 p-6 rounded-lg border-2 border-slate-700 shadow-xl">
-          <h2 className="text-2xl font-bold text-white mb-4 text-center">
-            Your Board
-          </h2>
-          <div className="inline-block bg-slate-900 p-2 rounded">
-            {Array.from({ length: GRID_SIZE }).map((_, row) => (
-              <div key={row} className="flex">
-                {Array.from({ length: GRID_SIZE }).map((_, col) => {
-                  const shipHere = getCellContent(row, col);
-                  const isPreview = isPreviewCell(row, col);
-                  const validPreview = isValidPreview(row, col);
-
-                  let cellClass =
-                    "w-10 h-10 border border-slate-700 transition-colors focus:outline-none ";
-
-                  if (shipHere) {
-                    cellClass += `${shipHere.color} ${
-                      selectedShip ? "cursor-pointer hover:opacity-80" : ""
-                    }`;
-                  } else if (isPreview && selectedShip) {
-                    const ship = SHIPS.find((s) => s.id === selectedShip);
-                    if (validPreview) {
-                      cellClass += `${ship?.color} opacity-60 border-2 border-green-400`;
-                    } else {
-                      cellClass +=
-                        "bg-red-600 opacity-60 border-2 border-red-400";
-                    }
-                  } else {
-                    cellClass += "bg-slate-800 hover:bg-slate-700";
-                  }
-
-                  return (
-                    <button
-                      key={col}
-                      onClick={() => handleCellClick(row, col)}
-                      onMouseEnter={() => setHoveredCell({ row, col })}
-                      onMouseLeave={() => setHoveredCell(null)}
-                      className={cellClass}
-                    />
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Right - Instructions */}
-        <div className="bg-slate-800 p-6 rounded-lg border-2 border-slate-700 shadow-xl max-w-xs">
-          <h2 className="text-2xl font-bold text-white mb-4">Instructions</h2>
-          <div className="space-y-4 text-slate-300">
-            <div className="bg-slate-900 p-4 rounded">
-              <p className="text-sm leading-relaxed">
-                <span className="text-yellow-400 font-semibold">1.</span> Click
-                on a ship from your fleet on the left
-              </p>
-            </div>
-            <div className="bg-slate-900 p-4 rounded">
-              <p className="text-sm leading-relaxed">
-                <span className="text-yellow-400 font-semibold">2.</span> Click
-                on your board to place the ship
-              </p>
-            </div>
-            <div className="bg-slate-900 p-4 rounded">
-              <p className="text-sm leading-relaxed">
-                <span className="text-yellow-400 font-semibold">3.</span> Press{" "}
-                <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">R</kbd>{" "}
-                to rotate the selected ship
-              </p>
-            </div>
-            <div className="bg-slate-900 p-4 rounded">
-              <p className="text-sm leading-relaxed">
-                <span className="text-yellow-400 font-semibold">4.</span> Click
-                on a placed ship to move it elsewhere
-              </p>
-            </div>
-            <div className="mt-6 p-4 bg-blue-900 bg-opacity-30 rounded border border-blue-500">
-              <p className="text-sm text-blue-200">
-                {selectedShip
-                  ? `${
-                      SHIPS.find((s) => s.id === selectedShip)?.name
-                    } selected (${isHorizontal ? "Horizontal" : "Vertical"})`
-                  : "No ship selected"}
-              </p>
-            </div>
-            {placedShips.length === SHIPS.length && (
               <button
-                className={`w-full mt-4 text-white font-bold py-3 rounded transition-colors
+                onClick={() => handleShipSelect(ship.id)}
+                className={`relative ${
+                  selectedShip === ship.id
+                    ? "ring-4 ring-yellow-400"
+                    : "hover:ring-2 ring-slate-500"
+                } transition-all`}
+              >
+                <div className="flex gap-0.5">
+                  {Array.from({ length: ship.length }).map((_, i) => (
+                    <div
+                      key={i}
+                      className={`w-10 h-10 ${ship.color} border border-slate-900`}
+                    />
+                  ))}
+                </div>
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Center - Game Board */}
+      <div className="bg-slate-800 p-6 rounded-lg border-2 border-slate-700 shadow-xl">
+        <h2 className="text-2xl font-bold text-white mb-4 text-center">
+          Your Board
+        </h2>
+        <div className="inline-block bg-slate-900 p-2 rounded">
+          {Array.from({ length: GRID_SIZE }).map((_, row) => (
+            <div key={row} className="flex">
+              {Array.from({ length: GRID_SIZE }).map((_, col) => {
+                const shipHere = getCellContent(row, col);
+                const isPreview = isPreviewCell(row, col);
+                const validPreview = isValidPreview(row, col);
+
+                let cellClass =
+                  "w-10 h-10 border border-slate-700 transition-colors focus:outline-none ";
+
+                if (shipHere) {
+                  cellClass += `${shipHere.color} ${
+                    selectedShip ? "cursor-pointer hover:opacity-80" : ""
+                  }`;
+                } else if (isPreview && selectedShip) {
+                  const ship = SHIPS.find((s) => s.id === selectedShip);
+                  if (validPreview) {
+                    cellClass += `${ship?.color} opacity-60 border-2 border-green-400`;
+                  } else {
+                    cellClass +=
+                      "bg-red-600 opacity-60 border-2 border-red-400";
+                  }
+                } else {
+                  cellClass += "bg-slate-800 hover:bg-slate-700";
+                }
+
+                return (
+                  <button
+                    key={col}
+                    onClick={() => handleCellClick(row, col)}
+                    onMouseEnter={() => setHoveredCell({ row, col })}
+                    onMouseLeave={() => setHoveredCell(null)}
+                    className={cellClass}
+                  />
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Right - Instructions */}
+      <div className="bg-slate-800 p-6 rounded-lg border-2 border-slate-700 shadow-xl max-w-xs">
+        <h2 className="text-2xl font-bold text-white mb-4">Instructions</h2>
+        <div className="space-y-4 text-slate-300">
+          <div className="bg-slate-900 p-4 rounded">
+            <p className="text-sm leading-relaxed">
+              <span className="text-yellow-400 font-semibold">1.</span> Click on
+              a ship from your fleet on the left
+            </p>
+          </div>
+          <div className="bg-slate-900 p-4 rounded">
+            <p className="text-sm leading-relaxed">
+              <span className="text-yellow-400 font-semibold">2.</span> Click on
+              your board to place the ship
+            </p>
+          </div>
+          <div className="bg-slate-900 p-4 rounded">
+            <p className="text-sm leading-relaxed">
+              <span className="text-yellow-400 font-semibold">3.</span> Press{" "}
+              <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">R</kbd> to
+              rotate the selected ship
+            </p>
+          </div>
+          <div className="bg-slate-900 p-4 rounded">
+            <p className="text-sm leading-relaxed">
+              <span className="text-yellow-400 font-semibold">4.</span> Click on
+              a placed ship to move it elsewhere
+            </p>
+          </div>
+          <div className="mt-6 p-4 bg-blue-900 bg-opacity-30 rounded border border-blue-500">
+            <p className="text-sm text-blue-200">
+              {selectedShip
+                ? `${
+                    SHIPS.find((s) => s.id === selectedShip)?.name
+                  } selected (${isHorizontal ? "Horizontal" : "Vertical"})`
+                : "No ship selected"}
+            </p>
+          </div>
+          {placedShips.length === SHIPS.length && (
+            <button
+              className={`w-full mt-4 text-white font-bold py-3 rounded transition-colors
                         ${
                           !isReady
                             ? "bg-green-600 hover:bg-green-700"
                             : "bg-gray-500 cursor-not-allowed"
                         }
                       `}
-                disabled={isReady}
-                onClick={getReady}
-              >
-                Ready to Battle!
-              </button>
-            )}
-          </div>
+              disabled={isReady}
+              onClick={getReady}
+            >
+              Ready to Battle!
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -18,6 +18,8 @@ export type Lobby = {
   playerBShips: Ship[] | [];
   playerAHits: Hit[] | [];
   playerBHits: Hit[] | [];
+  playerASunk: number[];
+  playerBSunk: number[];
   playerTurn: "A" | "B";
   playerAReady: "0" | "1";
   playerBReady: "0" | "1";
@@ -41,6 +43,7 @@ export type AttackResult = {
   shipName?: string;
   sunk?: boolean;
   error?: string;
+  shipCells?: { row: number; col: number }[];
 };
 
 export const HitsEnum = {

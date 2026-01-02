@@ -61,6 +61,7 @@ export async function verifyAttack(
         shipId: ship.id,
         shipName: ship.name,
         sunk: isSunk,
+        shipCells: isSunk ? ship.cells : undefined,
       };
     }
   }
@@ -68,7 +69,11 @@ export async function verifyAttack(
   return { valid: true, hit: false };
 }
 
-export function generateHitBoard(playerHits: Hit[], enemyShips: PlacedShip[]) {
+export function generateHitBoard(
+  playerHits: Hit[],
+  enemyShips: PlacedShip[],
+  enemySunks: number[]
+) {
   const hitsArray = Array.from({ length: 10 }, () =>
     Array.from<HitsEnumType>({ length: 10 }).fill(HitsEnum.Default)
   );
@@ -78,7 +83,12 @@ export function generateHitBoard(playerHits: Hit[], enemyShips: PlacedShip[]) {
     shipsLoop: for (const ship of enemyShips) {
       for (const cell of ship.cells) {
         if (cell.col === hit.col && cell.row === hit.row) {
-          hitsArray[hit.row][hit.col] = HitsEnum.Hit;
+          if (enemySunks.includes(ship.id)) {
+            hitsArray[hit.row][hit.col] = HitsEnum.Ship;
+          } else {
+            hitsArray[hit.row][hit.col] = HitsEnum.Hit;
+          }
+
           shipHit = true;
           break;
         }

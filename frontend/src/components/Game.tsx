@@ -1,4 +1,5 @@
-import React from "react";
+import React, { type SetStateAction } from "react";
+import { HitsEnum } from "../routes/GameController";
 
 const GRID_SIZE = 10;
 
@@ -22,9 +23,18 @@ interface PlacedShip extends Ship {
 interface GameProps {
   placedShips: PlacedShip[];
   onEnemyCellClick?: (row: number, col: number) => void;
+  isPlayerTurn: boolean;
+  playerHits: HitsEnum[][];
+  enemyHits: HitsEnum[][];
 }
 
-const Game = ({ placedShips, onEnemyCellClick }: GameProps) => {
+const Game = ({
+  placedShips,
+  onEnemyCellClick,
+  isPlayerTurn,
+  playerHits,
+  enemyHits,
+}: GameProps) => {
   // Check if a cell contains a ship
   const getShipAtCell = (row: number, col: number): PlacedShip | undefined => {
     return placedShips.find((ship) =>
@@ -37,7 +47,11 @@ const Game = ({ placedShips, onEnemyCellClick }: GameProps) => {
       <div className="space-y-6">
         {/* Turn Indicator */}
         <div className="bg-slate-800 p-4 rounded-lg border-2 border-slate-700 shadow-xl text-center">
-          <p className="text-xl font-bold text-yellow-400">Your Turn</p>
+          {isPlayerTurn ? (
+            <p className="text-xl font-bold text-yellow-400">Your Turn</p>
+          ) : (
+            <p className="text-xl font-bold text-red-400">Enemy Turn</p>
+          )}
         </div>
 
         {/* Boards Container */}
@@ -50,13 +64,26 @@ const Game = ({ placedShips, onEnemyCellClick }: GameProps) => {
             <div className="inline-block bg-slate-900 p-2 rounded">
               {Array.from({ length: GRID_SIZE }).map((_, row) => (
                 <div key={row} className="flex">
-                  {Array.from({ length: GRID_SIZE }).map((_, col) => (
-                    <button
-                      key={col}
-                      onClick={() => onEnemyCellClick?.(row, col)}
-                      className="w-10 h-10 border border-slate-700 bg-slate-800 hover:bg-slate-700 transition-colors focus:outline-none"
-                    />
-                  ))}
+                  {Array.from({ length: GRID_SIZE }).map((_, col) => {
+                    const hitCell = enemyHits[row][col]; // Get data for this cell
+
+                    return (
+                      <button
+                        key={col}
+                        onClick={() => onEnemyCellClick?.(row, col)}
+                        className={`w-10 h-10 border border-slate-700 transition-colors focus:outline-none
+                        ${hitCell === HitsEnum.Hit ? "bg-red-500" : ""}
+                        ${hitCell === HitsEnum.Miss ? "bg-blue-500" : ""}
+                        ${hitCell === HitsEnum.Ship ? "bg-green-600" : ""}
+                        ${
+                          hitCell === HitsEnum.Default
+                            ? "bg-slate-800 hover:bg-slate-700"
+                            : ""
+                        }
+                        `}
+                      />
+                    );
+                  })}
                 </div>
               ))}
             </div>
@@ -72,13 +99,28 @@ const Game = ({ placedShips, onEnemyCellClick }: GameProps) => {
                 <div key={row} className="flex">
                   {Array.from({ length: GRID_SIZE }).map((_, col) => {
                     const shipAtCell = getShipAtCell(row, col);
+                    const hitCell = playerHits[row][col]; // Get data for this cell
 
                     return (
                       <div
                         key={col}
                         className={`w-10 h-10 border border-slate-700 transition-colors ${
-                          shipAtCell ? shipAtCell.color : "bg-slate-800"
-                        }`}
+                          shipAtCell &&
+                          !(
+                            hitCell === HitsEnum.Hit ||
+                            hitCell === HitsEnum.Miss
+                          )
+                            ? shipAtCell.color
+                            : ""
+                        }
+                        ${
+                          hitCell === HitsEnum.Default && !shipAtCell
+                            ? "bg-slate-800"
+                            : ""
+                        }
+                        ${hitCell === HitsEnum.Hit ? "bg-amber-950" : ""}
+                        ${hitCell === HitsEnum.Miss ? "bg-white" : ""}
+                        ${hitCell === HitsEnum.Ship ? "bg-green-600" : ""}`}
                       />
                     );
                   })}

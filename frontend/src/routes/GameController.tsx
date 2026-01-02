@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import io from "socket.io-client";
 import axios from "axios";
@@ -6,10 +6,45 @@ import axios from "axios";
 import Game from "../components/Game";
 import Lobby from "../components/Lobby";
 
-interface JoinLobbyResponse {
+export const HitsEnum = {
+  Default: 0,
+  Hit: 1,
+  Miss: 2,
+  Ship: 3,
+} as const;
+
+export type HitsEnum = (typeof HitsEnum)[keyof typeof HitsEnum];
+
+const defaultHits = Array.from({ length: 10 }, () =>
+  Array.from<HitsEnum>({ length: 10 }).fill(HitsEnum.Default)
+);
+
+interface JoinLobbyResponseBase {
   status: string;
   message?: string;
 }
+
+interface JoinLobbyResponseWithPlayer extends JoinLobbyResponseBase {
+  player: "A" | "B";
+  isPrepared: boolean;
+  playerShips: PlacedShip[];
+  playerHits: HitsEnum[][];
+  enemyHits: HitsEnum[][];
+  playerTurn: "A" | "B";
+}
+
+interface JoinLobbyResponseWithoutPlayer extends JoinLobbyResponseBase {
+  player?: never;
+  isPrepared?: never;
+  playerShips?: never;
+  playerHits?: never;
+  enemyHits?: never;
+  playerTurn?: never;
+}
+
+type JoinLobbyResponse =
+  | JoinLobbyResponseWithPlayer
+  | JoinLobbyResponseWithoutPlayer;
 
 interface Ship {
   id: number;
@@ -28,6 +63,11 @@ interface Cell {
   col: number;
 }
 
+type HitData = {
+  cell: Cell;
+  player: "A" | "B";
+};
+
 function GameController() {
   const { id } = useParams();
 
@@ -36,8 +76,12 @@ function GameController() {
   const [connected, setConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(true);
-
+  const [isPlayerTurn, setIsPlayerTurn] = useState<boolean>(false);
+  const [enemyHits, setEnemyHits] = useState<HitsEnum[][]>(defaultHits);
+  const [playerHits, setPlayerHits] = useState<HitsEnum[][]>(defaultHits);
   const [placedShips, setPlacedShips] = useState<PlacedShip[]>([]);
+
+  const playerRef = useRef("");
 
   useEffect(() => {
     axios
@@ -47,11 +91,29 @@ function GameController() {
       .then((response) => {
         console.log("Success:", response.data);
 
+        const res = response.data;
+
         // Check if the status is "ok!" before proceeding
-        if (response.data.status !== "ok!") {
+        if (res.status !== "ok!") {
           setConnectionError(response.data.message || "Failed to join lobby");
           setIsConnecting(false);
+
           return;
+        }
+
+        console.log(res.player);
+        //if player is in response that means it is a reconnect attempt
+        if (res.player) {
+          if (res.player === res.playerTurn) {
+            setIsPlayerTurn(true);
+          }
+          setPlacedShips(res.playerShips);
+          setPlayerHits(res.playerHits);
+          setEnemyHits(res.enemyHits);
+
+          playerRef.current = res.player;
+
+          setGameStarted(true);
         }
 
         // Only initialize socket if join was successful
@@ -102,9 +164,52 @@ function GameController() {
         });
         //--------------------------------------
 
+        newSocket.on("set-player", (player: "A" | "B") => {
+          playerRef.current = player;
+        });
+
         newSocket.on("start-game", () => {
-          console.log("start game!");
           setGameStarted(true);
+        });
+
+        newSocket.on("set-turn", (turn: "A" | "B") => {
+          setIsPlayerTurn(turn === playerRef.current);
+        });
+
+        newSocket.on("hit", (hit: HitData) => {
+          if (hit.player === playerRef.current) {
+            // I got hit - update MY board (playerHits)
+            setEnemyHits((prev) => {
+              const newHits = prev.map((row) => [...row]);
+              newHits[hit.cell.row][hit.cell.col] = HitsEnum.Hit;
+              return newHits;
+            });
+          } else {
+            // Enemy got hit - update ENEMY board (enemyHits)
+            setPlayerHits((prev) => {
+              const newHits = prev.map((row) => [...row]);
+              newHits[hit.cell.row][hit.cell.col] = HitsEnum.Hit;
+              return newHits;
+            });
+          }
+        });
+
+        newSocket.on("miss", (hit: HitData) => {
+          if (hit.player === playerRef.current) {
+            // I got hit - update MY board (playerHits)
+            setEnemyHits((prev) => {
+              const newHits = prev.map((row) => [...row]);
+              newHits[hit.cell.row][hit.cell.col] = HitsEnum.Miss;
+              return newHits;
+            });
+          } else {
+            // Enemy got hit - update ENEMY board (enemyHits)
+            setPlayerHits((prev) => {
+              const newHits = prev.map((row) => [...row]);
+              newHits[hit.cell.row][hit.cell.col] = HitsEnum.Miss;
+              return newHits;
+            });
+          }
         });
 
         setSocket(newSocket);
@@ -127,7 +232,9 @@ function GameController() {
     socket?.emit("place-ships", placedShips);
   };
 
-  const onEnemyCellClick = (row: number, col: number) => {};
+  const onEnemyCellClick = (row: number, col: number) => {
+    socket?.emit("attack", { row, col });
+  };
 
   // Show error state
   if (connectionError && !connected) {
@@ -172,7 +279,13 @@ function GameController() {
 
   if (gameStarted) {
     return (
-      <Game placedShips={placedShips} onEnemyCellClick={onEnemyCellClick} />
+      <Game
+        placedShips={placedShips}
+        onEnemyCellClick={onEnemyCellClick}
+        isPlayerTurn={isPlayerTurn}
+        playerHits={playerHits}
+        enemyHits={enemyHits}
+      />
     );
   }
   return (

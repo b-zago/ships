@@ -6,13 +6,16 @@ import crypto from "crypto";
 import cookieParser from "cookie-parser";
 import type { Lobby } from "./types.js";
 import {
+  getLobbyInfo,
   getLobbyTokens,
+  isGamePrepared,
   redisClient,
   saveLobby,
   setPlayerBToken,
   validateToken,
 } from "./redis.js";
 import { setupSocketHandlers } from "./socketHandler.js";
+import { generateHitBoard } from "./util.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -64,13 +67,14 @@ app.post("/api/lobby/create", async (req, res) => {
 
     const token = crypto.randomBytes(32).toString("hex");
     const lobby: Lobby = {
-      id: lobbyId,
+      id: lobbyId as string,
       playerAToken: token,
       playerBToken: "",
       playerAShips: [],
       playerBShips: [],
       playerAHits: [],
       playerBHits: [],
+      playerTurn: "A",
       playerAReady: "0",
       playerBReady: "0",
       preparation: "1",
@@ -116,21 +120,65 @@ app.get("/api/lobby/join/:lobbyid", async (req, res) => {
 
   console.log("cookies token:", token);
 
-  const isTokenValidated = await validateToken(cookieLobbyId, token);
-
-  if (isTokenValidated) {
-    console.log("token validated!");
-    return res.json({
-      status: "ok!",
-    });
-  }
-
   const isLobbyReal = await redisClient.exists(`lobby:${lobbyId}`);
 
   if (!isLobbyReal) {
     return res.json({
       status: "error",
       message: "There is no lobby of this ID!",
+    });
+  }
+
+  const tokenInfo = await validateToken(cookieLobbyId, token);
+
+  console.log(tokenInfo);
+
+  if (tokenInfo.isValid) {
+    const isPrepared = await isGamePrepared(cookieLobbyId);
+
+    if (isPrepared) {
+      const gameInfo = await getLobbyInfo(cookieLobbyId);
+      console.log("token validated!");
+
+      if (tokenInfo.player === "A") {
+        return res.json({
+          status: "ok!",
+          isPrepared,
+          playerShips: gameInfo.playerAShips,
+          playerHits: generateHitBoard(
+            gameInfo.playerBHits,
+            gameInfo.playerAShips
+          ),
+          enemyHits: generateHitBoard(
+            gameInfo.playerAHits,
+            gameInfo.playerBShips
+          ),
+          playerTurn: gameInfo.playerTurn,
+          player: "A",
+        });
+      } else if (tokenInfo.player === "B") {
+        return res.json({
+          status: "ok!",
+          isPrepared,
+          playerShips: gameInfo.playerBShips,
+          playerHits: generateHitBoard(
+            gameInfo.playerAHits,
+            gameInfo.playerBShips
+          ),
+          enemyHits: generateHitBoard(
+            gameInfo.playerBHits,
+            gameInfo.playerAShips
+          ),
+          playerTurn: gameInfo.playerTurn,
+          player: "B",
+        });
+      }
+    }
+
+    //some handling of reconnecting when the game has not started yet
+    console.log("token validated!");
+    return res.json({
+      status: "ok!",
     });
   }
 

@@ -1,6 +1,7 @@
 import type { DefaultEventsMap, Server } from "socket.io";
 import { getLobbyTokens, redisClient, validateToken } from "./redis.js";
-import type { PlacedShip } from "./types.js";
+import type { Hit, PlacedShip } from "./types.js";
+import { verifyAttack } from "./util.js";
 
 export function setupSocketHandlers(
   io: Server<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>
@@ -50,11 +51,14 @@ export function setupSocketHandlers(
 
     const playerPrefix = isPlayerA ? "playerA" : "playerB";
     const enemyPrefix = isPlayerA ? "playerB" : "playerA";
-    socket.data.player = playerPrefix.charAt(6);
+    const player = isPlayerA ? "A" : "B";
+    const enemyPlayer = isPlayerA ? "B" : "A";
+
+    socket.emit("set-player", player);
 
     // Notify other players in the lobby
     socket.to(lobbyId).emit("player-joined", {
-      player: socket.data.player,
+      player: player,
     });
 
     // Handle ship placement
@@ -76,15 +80,76 @@ export function setupSocketHandlers(
 
       if (isEnemyReady === "1") {
         await redisClient.hSet(`lobby:${lobbyId}`, "preparation", "0");
+        await redisClient.hSet(`lobby:${lobbyId}`, "playerTurn", "A");
+        io.to(lobbyId).emit("set-turn", "A");
         io.to(lobbyId).emit("start-game");
         console.log("start game!");
       }
     });
 
     // Handle attacks
-    socket.on("attack", async (coordinates) => {
+    socket.on("attack", async (cell: Hit) => {
       // Process attack
       // Emit result to both players
+      const currentTurn = await redisClient.hGet(
+        `lobby:${lobbyId}`,
+        "playerTurn"
+      );
+
+      console.log("player::", player);
+      console.log("turn::", currentTurn);
+
+      if (player === currentTurn) {
+        //this all also needs errors handling later lol
+        const currentHitsStr = await redisClient.hGet(
+          `lobby:${lobbyId}`,
+          `${playerPrefix}Hits`
+        );
+
+        const attackResult = await verifyAttack(
+          lobbyId,
+          cell,
+          currentHitsStr as string, //HANDLE PROPERLY LATER
+          enemyPrefix
+        );
+
+        if (!attackResult.valid) {
+          console.log(`Invalid attack: ${attackResult.error}`);
+          return;
+          //emit error event here
+        }
+
+        if (attackResult.hit) {
+          console.log(`Hit ${attackResult.shipName}!`);
+          //emit hit event here
+          io.to(lobbyId).emit("hit", { cell, player });
+          if (attackResult.sunk) {
+            console.log(`${attackResult.shipName} has been sunk!`);
+            //emit sunk event here
+            io.to(lobbyId).emit("sunk", { ship: attackResult.shipName });
+            //add some logic of counting sunken ships somehow (maybe just in redis?)
+          }
+        } else {
+          console.log("Miss!");
+          //emit miss event here
+          io.to(lobbyId).emit("miss", { cell, player });
+        }
+        //this is already done in verifyAttack - optimize later
+        const currentHits: Hit[] = currentHitsStr
+          ? JSON.parse(currentHitsStr)
+          : [];
+
+        currentHits.push(cell);
+
+        await redisClient.hSet(
+          `lobby:${lobbyId}`,
+          `${playerPrefix}Hits`,
+          JSON.stringify(currentHits)
+        );
+
+        await redisClient.hSet(`lobby:${lobbyId}`, "playerTurn", enemyPlayer);
+        io.to(lobbyId).emit("set-turn", enemyPlayer);
+      }
     });
 
     // Handle disconnection

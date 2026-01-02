@@ -40,6 +40,8 @@ function Lobby({ placedShips, setPlacedShips, confirmShips }: LobbyProps) {
 
   const [hoveredCell, setHoveredCell] = useState<Cell | null>(null);
 
+  const [isReady, setIsReady] = useState<boolean>(false);
+
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() === "r" && selectedShip) {
@@ -183,6 +185,11 @@ function Lobby({ placedShips, setPlacedShips, confirmShips }: LobbyProps) {
     );
   };
 
+  const getReady = () => {
+    confirmShips();
+    setIsReady(true);
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-b from-slate-900 to-slate-800 relative overflow-hidden">
       <div className="flex gap-8 items-start">
@@ -307,8 +314,15 @@ function Lobby({ placedShips, setPlacedShips, confirmShips }: LobbyProps) {
             </div>
             {placedShips.length === SHIPS.length && (
               <button
-                className="w-full mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded transition-colors"
-                onClick={confirmShips}
+                className={`w-full mt-4 text-white font-bold py-3 rounded transition-colors
+                        ${
+                          !isReady
+                            ? "bg-green-600 hover:bg-green-700"
+                            : "bg-gray-500 cursor-not-allowed"
+                        }
+                      `}
+                disabled={isReady}
+                onClick={getReady}
               >
                 Ready to Battle!
               </button>

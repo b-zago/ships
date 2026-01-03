@@ -1,5 +1,7 @@
 import React, { type SetStateAction } from "react";
 import { HitsEnum } from "../routes/GameController";
+import { useNavigate } from "react-router-dom";
+import { Home } from "lucide-react";
 
 const GRID_SIZE = 10;
 
@@ -26,6 +28,7 @@ interface GameProps {
   isPlayerTurn: boolean;
   playerHits: HitsEnum[][];
   enemyHits: HitsEnum[][];
+  showHomeButton: boolean;
 }
 
 const Game = ({
@@ -34,6 +37,7 @@ const Game = ({
   isPlayerTurn,
   playerHits,
   enemyHits,
+  showHomeButton,
 }: GameProps) => {
   // Check if a cell contains a ship
   const getShipAtCell = (row: number, col: number): PlacedShip | undefined => {
@@ -42,8 +46,21 @@ const Game = ({
     );
   };
 
+  const navigate = useNavigate();
+
   return (
     <div className="space-y-6">
+      {showHomeButton && (
+        <div className="flex justify-center text-center">
+          <button
+            onClick={() => navigate("/")}
+            className="flex items-center gap-2 px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded border-2 border-slate-600 transition-all"
+          >
+            <Home size={20} />
+            <span>Home</span>
+          </button>
+        </div>
+      )}
       {/* Turn Indicator */}
       <div className="bg-slate-800 p-4 rounded-lg border-2 border-slate-700 shadow-xl text-center">
         {isPlayerTurn ? (

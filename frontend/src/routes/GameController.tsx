@@ -1,5 +1,6 @@
+import { Home } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import io from "socket.io-client";
 import axios from "axios";
 
@@ -76,6 +77,7 @@ type SunkData = {
 
 function GameController() {
   const { id } = useParams();
+  const navigate = useNavigate();
 
   const [socket, setSocket] = useState<SocketIOClient.Socket | null>(null);
   const [gameStarted, setGameStarted] = useState<boolean>(false);
@@ -86,7 +88,8 @@ function GameController() {
   const [enemyHits, setEnemyHits] = useState<HitsEnum[][]>(defaultHits);
   const [playerHits, setPlayerHits] = useState<HitsEnum[][]>(defaultHits);
   const [placedShips, setPlacedShips] = useState<PlacedShip[]>([]);
-  const [gameEnded, setGameEnded] = useState<null | "A" | "B">(null);
+  const [gameEndPopup, setGameEndPopup] = useState<null | "A" | "B">(null);
+  const [showHomeButton, setShowHomeButton] = useState(false);
 
   const playerRef = useRef("");
 
@@ -236,7 +239,7 @@ function GameController() {
         });
 
         newSocket.on("game-end", (player: "A" | "B") => {
-          setGameEnded(player);
+          setGameEndPopup(player);
         });
 
         setSocket(newSocket);
@@ -306,15 +309,30 @@ function GameController() {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-b from-slate-900 to-slate-800 relative overflow-hidden">
-      {gameEnded && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      {gameEndPopup && (
+        <div className="fixed inset-0 flex items-center justify-center z-50">
           <div className="bg-slate-800 p-8 rounded-lg border-2 border-slate-700 shadow-xl text-center space-y-6">
             <p className="text-3xl font-bold text-white">
-              {gameEnded === playerRef.current ? "You Win!" : "You Lost!"}
+              {gameEndPopup === playerRef.current ? "You Win!" : "You Lost!"}
             </p>
-            <button className="px-8 py-3 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded border-2 border-slate-600 transition-colors">
-              OK
-            </button>
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={() => {
+                  setShowHomeButton(true);
+                  setGameEndPopup(null);
+                }}
+                className="px-8 py-3 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded border-2 border-slate-600 transition-colors"
+              >
+                OK
+              </button>
+              <button
+                onClick={() => navigate("/")}
+                className="flex items-center gap-2 px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded border-2 border-slate-600 transition-all"
+              >
+                <Home size={20} />
+                <span>Home</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -325,6 +343,7 @@ function GameController() {
           isPlayerTurn={isPlayerTurn}
           playerHits={playerHits}
           enemyHits={enemyHits}
+          showHomeButton={showHomeButton}
         />
       ) : (
         <Lobby

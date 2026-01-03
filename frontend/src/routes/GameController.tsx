@@ -1,11 +1,12 @@
 import { Home } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import io from "socket.io-client";
 import axios from "axios";
 
 import Game from "../components/Game";
 import Lobby from "../components/Lobby";
+import { ToastContainer } from "../components/Toast";
 
 export const HitsEnum = {
   Default: 0,
@@ -91,9 +92,16 @@ function GameController() {
   const [gameEndPopup, setGameEndPopup] = useState<null | "A" | "B">(null);
   const [showHomeButton, setShowHomeButton] = useState(false);
 
+  const [toasts, setToasts] = useState<
+    Array<{ id: string; message: string; time: number }>
+  >([]);
+
   const playerRef = useRef("");
+  const toastIdCounter = useRef(0);
+  const socketRef = useRef<SocketIOClient.Socket | null>(null);
 
   useEffect(() => {
+    if (socketRef.current) return;
     axios
       .get<JoinLobbyResponse>(`http://localhost:3000/api/lobby/join/${id}`, {
         withCredentials: true,
@@ -134,6 +142,8 @@ function GameController() {
           timeout: 10000,
         });
 
+        socketRef.current = newSocket;
+
         newSocket.on("connect", () => {
           setConnected(true);
           setIsConnecting(false);
@@ -172,7 +182,18 @@ function GameController() {
           setConnected(true);
           console.log(`Reconnected after ${attemptNumber} attempts`);
         });
-        //--------------------------------------
+        //-----------IO DISCONNECTS-----------
+
+        newSocket.on("disconnect-timer-started", (time: number) => {});
+
+        //---------------------------------
+
+        newSocket.on("player-joined", (player: "A" | "B") => {
+          console.log("player joined");
+          if (player !== playerRef.current) {
+            addToast("Another player joined the game!");
+          }
+        });
 
         newSocket.on("set-player", (player: "A" | "B") => {
           playerRef.current = player;
@@ -241,8 +262,6 @@ function GameController() {
         newSocket.on("game-end", (player: "A" | "B") => {
           setGameEndPopup(player);
         });
-
-        setSocket(newSocket);
       })
       .catch((error) => {
         console.error("Error:", error);
@@ -251,20 +270,36 @@ function GameController() {
       });
 
     return () => {
-      // Only disconnect if socket was created
-      if (socket) {
-        socket.close();
+      // Clean up using socketRef, not socket state
+      if (socketRef.current) {
+        socketRef.current.close();
       }
+      // if (socket) {
+      //   socket.close();
+      // }
     };
   }, []);
 
   const confirmShips = () => {
-    socket?.emit("place-ships", placedShips);
+    socketRef.current?.emit("place-ships", placedShips);
   };
 
   const onEnemyCellClick = (row: number, col: number) => {
-    socket?.emit("attack", { row, col });
+    socketRef.current?.emit("attack", { row, col });
   };
+
+  const addToast = (message: string, time: number = 3000) => {
+    const id = `${toastIdCounter.current++}`;
+    setToasts((prev) => [...prev, { id, message, time }]);
+  };
+
+  const removeToast = useCallback((id: string) => {
+    setToasts((prev) => {
+      const filtered = prev.filter((toast) => toast.id !== id);
+
+      return filtered;
+    });
+  }, []);
 
   // Show error state
   if (connectionError && !connected) {
@@ -309,6 +344,7 @@ function GameController() {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-b from-slate-900 to-slate-800 relative overflow-hidden">
+      <ToastContainer toasts={toasts} onRemoveToast={removeToast} />
       {gameEndPopup && (
         <div className="fixed inset-0 flex items-center justify-center z-50">
           <div className="bg-slate-800 p-8 rounded-lg border-2 border-slate-700 shadow-xl text-center space-y-6">

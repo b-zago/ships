@@ -3,6 +3,11 @@ import { getLobbyTokens, redisClient, validateToken } from "./redis.js";
 import type { Hit, PlacedShip } from "./types.js";
 import { verifyAttack } from "./util.js";
 
+const lobbyTimers = new Map<string, NodeJS.Timeout>();
+const DISCONNECT_TIMEOUT = 60000; // 60 seconds
+
+const connectedUsers = new Map<string, string>();
+
 export function setupSocketHandlers(
   io: Server<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>
 ) {
@@ -29,6 +34,20 @@ export function setupSocketHandlers(
       return next(new Error("Invalid token"));
     }
 
+    //this is to ensure one socket connection per one user
+    if (connectedUsers.has(token)) {
+      const existingSocketId = connectedUsers.get(token);
+      const existingSocket = io.sockets.sockets.get(existingSocketId!);
+
+      if (existingSocket && existingSocket.connected) {
+        console.log(`Disconnecting duplicate connection for token: ${token}`);
+        console.log("DISCONNECT THE BITCH");
+        existingSocket.disconnect(true); // Disconnect the old connection
+      }
+    }
+
+    connectedUsers.set(token, socket.id);
+
     // Attach user data to socket for later use
     socket.data.token = token;
     socket.data.lobbyId = lobbyId;
@@ -45,6 +64,20 @@ export function setupSocketHandlers(
     // Join the lobby room
     socket.join(lobbyId);
 
+    // Check how many players are in the lobby now
+    const socketsInRoom = await io.in(lobbyId).fetchSockets();
+
+    console.log("------------------------------------");
+    console.log("SOCKETS IN LOBBY:", socketsInRoom);
+
+    // If we now have 2 players, cancel any existing timer
+    if (socketsInRoom.length === 2 && lobbyTimers.has(lobbyId)) {
+      console.log(`Cancelling disconnect timer for lobby ${lobbyId}`);
+      clearTimeout(lobbyTimers.get(lobbyId)!);
+      lobbyTimers.delete(lobbyId);
+      io.to(lobbyId).emit("timer-cancelled");
+    }
+
     // Determine if this is playerA or playerB
     const lobbyTokens = await getLobbyTokens(lobbyId);
     const isPlayerA = token === lobbyTokens.playerAToken;
@@ -57,9 +90,8 @@ export function setupSocketHandlers(
     socket.emit("set-player", player);
 
     // Notify other players in the lobby
-    socket.to(lobbyId).emit("player-joined", {
-      player: player,
-    });
+    socket.to(lobbyId).emit("player-joined", player);
+    console.log("PLAYER JOINED BITCH!");
 
     // Handle ship placement
     socket.on("place-ships", async (ships: PlacedShip[]) => {
@@ -179,11 +211,39 @@ export function setupSocketHandlers(
     });
 
     // Handle disconnection
-    socket.on("disconnect", () => {
+    socket.on("disconnect", async () => {
       console.log(`User disconnected from lobby ${lobbyId}`);
-      socket.to(lobbyId).emit("player-disconnected", {
-        player: socket.data.player,
-      });
+
+      const currentSocketId = connectedUsers.get(token);
+
+      if (currentSocketId === socket.id) {
+        connectedUsers.delete(token);
+      }
+
+      // Check how many players remain after this disconnect
+      const remainingSockets = await io.in(lobbyId).fetchSockets();
+
+      // Only start timer if less than 2 players AND no timer exists
+      if (remainingSockets.length < 2 && !lobbyTimers.has(lobbyId)) {
+        console.log(`Starting disconnect timer for lobby ${lobbyId}`);
+
+        const timer = setTimeout(async () => {
+          console.log(`Lobby ${lobbyId} expired due to disconnection`);
+          io.to(lobbyId).emit("lobby-expired");
+
+          await redisClient.del(`lobby:${lobbyId}`);
+          lobbyTimers.delete(lobbyId);
+
+          const sockets = await io.in(lobbyId).fetchSockets();
+          sockets.forEach((s) => s.disconnect(true));
+        }, DISCONNECT_TIMEOUT);
+
+        lobbyTimers.set(lobbyId, timer);
+
+        io.to(lobbyId).emit("disconnect-timer-started", {
+          timeoutMs: DISCONNECT_TIMEOUT,
+        });
+      }
     });
   });
 }

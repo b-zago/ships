@@ -80,7 +80,6 @@ function GameController() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const [socket, setSocket] = useState<SocketIOClient.Socket | null>(null);
   const [gameStarted, setGameStarted] = useState<boolean>(false);
   const [connected, setConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -101,7 +100,6 @@ function GameController() {
   const socketRef = useRef<SocketIOClient.Socket | null>(null);
 
   useEffect(() => {
-    if (socketRef.current) return;
     axios
       .get<JoinLobbyResponse>(`http://localhost:3000/api/lobby/join/${id}`, {
         withCredentials: true,
@@ -184,7 +182,11 @@ function GameController() {
         });
         //-----------IO DISCONNECTS-----------
 
-        newSocket.on("disconnect-timer-started", (time: number) => {});
+        newSocket.on("disconnect-timer-started", (time: number) => {
+          addToast(
+            `Player has disconnected. The lobby will abort in: ${time} seconds`
+          );
+        });
 
         //---------------------------------
 
@@ -240,6 +242,7 @@ function GameController() {
         });
 
         newSocket.on("sunk", (sunk: SunkData) => {
+          addToast(`${sunk.ship} has been sunk!`);
           if (sunk.player === playerRef.current) {
             setEnemyHits((prev) => {
               const newHits = prev.map((row) => [...row]);
@@ -260,6 +263,7 @@ function GameController() {
         });
 
         newSocket.on("game-end", (player: "A" | "B") => {
+          addToast("The game has ended! GG");
           setGameEndPopup(player);
         });
       })
@@ -274,9 +278,6 @@ function GameController() {
       if (socketRef.current) {
         socketRef.current.close();
       }
-      // if (socket) {
-      //   socket.close();
-      // }
     };
   }, []);
 

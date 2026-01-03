@@ -95,6 +95,15 @@ export function setupSocketHandlers(
 
     // Handle ship placement
     socket.on("place-ships", async (ships: PlacedShip[]) => {
+      const isPreparation = await redisClient.hGet(
+        `lobby:${lobbyId}`,
+        "preparation"
+      );
+
+      if (isPreparation === "0") {
+        //ships already placed
+        return;
+      }
       //validate if correct ships here
       // Save ships to Redis if correct
       await redisClient.hSet(
@@ -220,6 +229,15 @@ export function setupSocketHandlers(
         connectedUsers.delete(token);
       }
 
+      const isPreparation = await redisClient.hGet(
+        `lobby:${lobbyId}`,
+        "preparation"
+      );
+
+      if (isPreparation === "1") {
+        await redisClient.hSet(`lobby:${lobbyId}`, `${playerPrefix}Ready`, "0");
+      }
+
       // Check how many players remain after this disconnect
       const remainingSockets = await io.in(lobbyId).fetchSockets();
 
@@ -229,7 +247,6 @@ export function setupSocketHandlers(
 
         const timer = setTimeout(async () => {
           console.log(`Lobby ${lobbyId} expired due to disconnection`);
-          io.to(lobbyId).emit("lobby-expired");
 
           await redisClient.del(`lobby:${lobbyId}`);
           lobbyTimers.delete(lobbyId);
@@ -240,9 +257,7 @@ export function setupSocketHandlers(
 
         lobbyTimers.set(lobbyId, timer);
 
-        io.to(lobbyId).emit("disconnect-timer-started", {
-          timeoutMs: DISCONNECT_TIMEOUT,
-        });
+        io.to(lobbyId).emit("disconnect-timer-started", DISCONNECT_TIMEOUT);
       }
     });
   });

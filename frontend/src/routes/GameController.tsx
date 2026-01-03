@@ -101,7 +101,7 @@ function GameController() {
 
   useEffect(() => {
     axios
-      .get<JoinLobbyResponse>(`http://localhost:3000/api/lobby/join/${id}`, {
+      .get<JoinLobbyResponse>(`/api/lobby/join/${id}`, {
         withCredentials: true,
       })
       .then((response) => {
@@ -133,7 +133,7 @@ function GameController() {
         }
 
         // Only initialize socket if join was successful
-        const newSocket = io("http://localhost:3000", {
+        const newSocket = io({
           transports: ["websocket", "polling"],
           reconnectionAttempts: 5,
           reconnectionDelay: 1000,

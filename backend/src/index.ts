@@ -102,15 +102,15 @@ app.post("/api/lobby/create", async (req, res) => {
     res.cookie("token", token, {
       maxAge: 7200000, // milliseconds
       httpOnly: true,
-      secure: true,
-      sameSite: "strict",
+      secure: false,
+      sameSite: "lax",
     });
 
     res.cookie("lobbyId", lobbyId, {
       maxAge: 7200000, // milliseconds
       httpOnly: true,
-      secure: true,
-      sameSite: "strict",
+      secure: false,
+      sameSite: "lax",
     });
 
     res.json({
@@ -214,15 +214,15 @@ app.get("/api/lobby/join/:lobbyId", async (req, res) => {
   res.cookie("token", token, {
     maxAge: 7200000, // milliseconds
     httpOnly: true,
-    secure: true,
-    sameSite: "strict",
+    secure: false,
+    sameSite: "lax",
   });
 
   res.cookie("lobbyId", lobbyId, {
     maxAge: 7200000, // milliseconds
     httpOnly: true,
-    secure: true,
-    sameSite: "strict",
+    secure: false,
+    sameSite: "lax",
   });
 
   await setPlayerBToken(lobbyId, token);

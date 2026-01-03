@@ -10,13 +10,11 @@ export default function ShipsLanding() {
     setIsGenerating(true);
 
     axios
-      .post<{ url: string }>(
-        "http://localhost:3000/api/lobby/create",
-        {},
-        { withCredentials: true }
-      )
+      .post<{ url: string }>("/api/lobby/create", {}, { withCredentials: true })
       .then((response) => {
         console.log("Success:", response.data);
+        console.log("Request URL:", response.config.url);
+        console.log("Base URL:", response.config.baseURL);
         setGameUrl(response.data.url);
         setIsGenerating(false);
       })

@@ -1,20 +1,21 @@
-# Use Node.js LTS version
 FROM node:22-alpine
 
-# Set working directory
 WORKDIR /app
 
-# Copy package files
 COPY package*.json ./
-
-# Install dependencies
 RUN npm install
 
-# Copy source code
 COPY . .
 
-# Expose port (adjust if your app uses a different port)
+# Debug output
+RUN echo "=== Contents of /app ===" && ls -la
+RUN echo "=== Contents of /app/src ===" && ls -la src/
+RUN echo "=== Running build ===" && npm run build
+RUN echo "=== Build exit code: $?" 
+RUN echo "=== Contents of /app after build ===" && ls -la
+RUN echo "=== Contents of /app/dist ===" && ls -la dist/ || echo "DIST FOLDER DOES NOT EXIST"
+RUN echo "=== Checking for index.js ===" && test -f dist/index.js && echo "index.js EXISTS" || echo "index.js MISSING"
+
 EXPOSE 3000
 
-# Use the dev script with watch mode for development
-CMD ["npm", "run", "dev"]
+CMD ["npm", "run", "start"]

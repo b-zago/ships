@@ -184,7 +184,9 @@ function GameController() {
 
         newSocket.on("disconnect-timer-started", (time: number) => {
           addToast(
-            `Player has disconnected. The lobby will abort in: ${time} seconds`
+            `Player has disconnected. The lobby will abort in: ${
+              time / 1000
+            } seconds`
           );
         });
 

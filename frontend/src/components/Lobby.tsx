@@ -1,7 +1,6 @@
 import { useState, useEffect, type SetStateAction } from "react";
 
 const GRID_SIZE = 10;
-const CELL_SIZE = 40;
 
 interface Ship {
   id: number;
@@ -172,7 +171,7 @@ function Lobby({ placedShips, setPlacedShips, confirmShips }: LobbyProps) {
     return previewCells.some((c) => c.row === row && c.col === col);
   };
 
-  const isValidPreview = (row: number, col: number): boolean => {
+  const isValidPreview = (): boolean => {
     if (!selectedShip || !hoveredCell) return false;
     const ship = SHIPS.find((s) => s.id === selectedShip);
     if (!ship) return false;
@@ -237,7 +236,7 @@ function Lobby({ placedShips, setPlacedShips, confirmShips }: LobbyProps) {
               {Array.from({ length: GRID_SIZE }).map((_, col) => {
                 const shipHere = getCellContent(row, col);
                 const isPreview = isPreviewCell(row, col);
-                const validPreview = isValidPreview(row, col);
+                const validPreview = isValidPreview();
 
                 let cellClass =
                   "w-10 h-10 border border-slate-700 transition-colors focus:outline-none ";

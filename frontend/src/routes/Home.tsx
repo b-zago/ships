@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import axios from "axios";
 import { Anchor, Users, Zap } from "lucide-react";
 
@@ -8,14 +8,6 @@ export default function ShipsLanding() {
 
   const generateGameLobby = () => {
     setIsGenerating(true);
-
-    // Simulate URL generation
-    // setTimeout(() => {
-    //   const lobbyId = Math.random().toString(36).substring(2, 10);
-    //   const url = `${window.location.origin}/game/${lobbyId}`;
-    //   setGameUrl(url);
-    //   setIsGenerating(false);
-    // }, 800);
 
     axios
       .post<{ url: string }>(

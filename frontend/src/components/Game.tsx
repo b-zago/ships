@@ -1,4 +1,3 @@
-import React, { type SetStateAction } from "react";
 import { HitsEnum } from "../routes/GameController";
 import { useNavigate } from "react-router-dom";
 import { Home } from "lucide-react";

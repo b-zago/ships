@@ -1,5 +1,6 @@
 import express from "express";
-import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import crypto from "crypto";
@@ -20,25 +21,28 @@ import { generateHitBoard } from "./util.js";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 //http server
 const server = createServer(app);
 
 //socket.io server
 const io = new Server(server, {
   cors: {
-    origin: "*", // Configure this based on your frontend
+    origin: false, // Configure this based on your frontend
     credentials: true,
   },
 });
 
 redisClient.connect().catch(console.error);
 
-app.use(
-  cors({
-    origin: "http://localhost:5173",
-    credentials: true,
-  })
-);
+// app.use(
+//   cors({
+//     origin: "http://localhost:5173",
+//     credentials: true,
+//   })
+// );
 app.use(cookieParser());
 app.use(express.json());
 
@@ -99,21 +103,18 @@ app.post("/api/lobby/create", async (req, res) => {
       maxAge: 7200000, // milliseconds
       httpOnly: true,
       secure: true,
-      sameSite: "lax",
+      sameSite: "strict",
     });
 
     res.cookie("lobbyId", lobbyId, {
       maxAge: 7200000, // milliseconds
       httpOnly: true,
       secure: true,
-      sameSite: "lax",
+      sameSite: "strict",
     });
 
-    // res.json({
-    //   url: `${req.protocol}://${req.get("host")}/game/${lobbyId}`,
-    // });
     res.json({
-      url: `${req.protocol}://localhost:5173/game/${lobbyId}`,
+      url: `${req.protocol}://${req.get("host")}/game/${lobbyId}`,
     });
   } catch (error) {
     console.error("Error creating lobby:", error);
@@ -123,8 +124,8 @@ app.post("/api/lobby/create", async (req, res) => {
   }
 });
 
-app.get("/api/lobby/join/:lobbyid", async (req, res) => {
-  const lobbyId = req.params.lobbyid;
+app.get("/api/lobby/join/:lobbyId", async (req, res) => {
+  const lobbyId = req.params.lobbyId;
   let token = req.cookies.token;
   const cookieLobbyId = req.cookies.lobbyId;
 
@@ -214,14 +215,14 @@ app.get("/api/lobby/join/:lobbyid", async (req, res) => {
     maxAge: 7200000, // milliseconds
     httpOnly: true,
     secure: true,
-    sameSite: "lax",
+    sameSite: "strict",
   });
 
   res.cookie("lobbyId", lobbyId, {
     maxAge: 7200000, // milliseconds
     httpOnly: true,
     secure: true,
-    sameSite: "lax",
+    sameSite: "strict",
   });
 
   await setPlayerBToken(lobbyId, token);
@@ -234,11 +235,15 @@ app.get("/api/lobby/join/:lobbyid", async (req, res) => {
   });
 });
 
-setupSocketHandlers(io);
+// SERVE STATIC FILES - After API routes
+app.use(express.static(path.join(__dirname, "..", "public")));
 
-app.get("/health", (req, res) => {
-  res.json({ status: "ok!" });
+// CATCH-ALL ROUTE - Must be last
+app.get(/.*/, (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "index.html"));
 });
+
+setupSocketHandlers(io);
 
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

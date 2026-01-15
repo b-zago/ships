@@ -1,3 +1,5 @@
+const apiURL = import.meta.env.VITE_API_URL;
+
 import { Home } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -90,6 +92,7 @@ function GameController() {
   const [placedShips, setPlacedShips] = useState<PlacedShip[]>([]);
   const [gameEndPopup, setGameEndPopup] = useState<null | "A" | "B">(null);
   const [showHomeButton, setShowHomeButton] = useState(false);
+  const [incrementReady, setIncrementReady] = useState(false);
 
   const [toasts, setToasts] = useState<
     Array<{ id: string; message: string; time: number }>
@@ -101,7 +104,7 @@ function GameController() {
 
   useEffect(() => {
     axios
-      .get<JoinLobbyResponse>(`/api/lobby/join/${id}`, {
+      .get<JoinLobbyResponse>(`${apiURL}/api/lobby/join/${id}`, {
         withCredentials: true,
       })
       .then((response) => {
@@ -133,7 +136,7 @@ function GameController() {
         }
 
         // Only initialize socket if join was successful
-        const newSocket = io({
+        const newSocket = io(apiURL, {
           transports: ["websocket", "polling"],
           reconnectionAttempts: 5,
           reconnectionDelay: 1000,
@@ -201,6 +204,10 @@ function GameController() {
 
         newSocket.on("set-player", (player: "A" | "B") => {
           playerRef.current = player;
+        });
+
+        newSocket.on("playerReady", () => {
+          setIncrementReady(true);
         });
 
         newSocket.on("start-game", () => {
@@ -389,6 +396,7 @@ function GameController() {
           placedShips={placedShips}
           setPlacedShips={setPlacedShips}
           confirmShips={confirmShips}
+          incrementReady={incrementReady}
         />
       )}
     </div>

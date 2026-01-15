@@ -125,6 +125,8 @@ export function setupSocketHandlers(
         io.to(lobbyId).emit("set-turn", "A");
         io.to(lobbyId).emit("start-game");
         console.log("start game!");
+      } else {
+        io.to(lobbyId).emit("playerReady");
       }
     });
 

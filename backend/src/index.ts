@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import crypto from "crypto";
+import cors from "cors";
 import cookieParser from "cookie-parser";
 import type { Lobby } from "./types.js";
 import {
@@ -17,6 +18,8 @@ import {
 } from "./redis.js";
 import { setupSocketHandlers } from "./socketHandler.js";
 import { generateHitBoard } from "./util.js";
+
+const isProd = process.env.PROD === "0" ? false : true;
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -37,12 +40,15 @@ const io = new Server(server, {
 
 redisClient.connect().catch(console.error);
 
-// app.use(
-//   cors({
-//     origin: "http://localhost:5173",
-//     credentials: true,
-//   })
-// );
+if (!isProd) {
+  app.use(
+    cors({
+      origin: "http://localhost:5173",
+      credentials: true,
+    })
+  );
+}
+
 app.use(cookieParser());
 app.use(express.json());
 
@@ -114,7 +120,9 @@ app.post("/api/lobby/create", async (req, res) => {
     });
 
     res.json({
-      url: `${req.protocol}://${req.get("host")}/game/${lobbyId}`,
+      url: `${req.protocol}://${
+        isProd ? req.get("host") : "localhost:5173"
+      }/game/${lobbyId}`,
     });
   } catch (error) {
     console.error("Error creating lobby:", error);

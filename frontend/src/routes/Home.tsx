@@ -1,3 +1,5 @@
+const apiURL = import.meta.env.VITE_API_URL;
+
 import { useState } from "react";
 import axios from "axios";
 import { Anchor, Users, Zap } from "lucide-react";
@@ -10,7 +12,11 @@ export default function ShipsLanding() {
     setIsGenerating(true);
 
     axios
-      .post<{ url: string }>("/api/lobby/create", {}, { withCredentials: true })
+      .post<{ url: string }>(
+        apiURL + "/api/lobby/create",
+        {},
+        { withCredentials: true }
+      )
       .then((response) => {
         console.log("Success:", response.data);
         console.log("Request URL:", response.config.url);

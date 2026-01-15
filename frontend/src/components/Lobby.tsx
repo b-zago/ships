@@ -21,6 +21,7 @@ interface Cell {
 
 interface LobbyProps {
   placedShips: PlacedShip[];
+  incrementReady: boolean;
   setPlacedShips: React.Dispatch<SetStateAction<PlacedShip[]>>;
   confirmShips: () => void;
 }
@@ -33,7 +34,12 @@ const SHIPS: Ship[] = [
   { id: 5, name: "Destroyer", length: 2, color: "bg-red-500" },
 ];
 
-function Lobby({ placedShips, setPlacedShips, confirmShips }: LobbyProps) {
+function Lobby({
+  placedShips,
+  setPlacedShips,
+  confirmShips,
+  incrementReady,
+}: LobbyProps) {
   const [selectedShip, setSelectedShip] = useState<number | null>(null);
   const [isHorizontal, setIsHorizontal] = useState<boolean>(true);
 
@@ -270,6 +276,9 @@ function Lobby({ placedShips, setPlacedShips, confirmShips }: LobbyProps) {
             </div>
           ))}
         </div>
+        <p className="text-center text-white mt-5 text-xl">
+          Players ready: {incrementReady ? "1" : "0"}/2
+        </p>
       </div>
 
       {/* Right - Instructions */}

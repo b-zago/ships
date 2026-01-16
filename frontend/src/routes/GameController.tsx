@@ -78,6 +78,12 @@ type SunkData = {
   player: "A" | "B";
 };
 
+type EndDataType = {
+  player: "A" | "B";
+  playerAShips: PlacedShip[];
+  playerBShips: PlacedShip[];
+};
+
 function GameController() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -90,6 +96,7 @@ function GameController() {
   const [enemyHits, setEnemyHits] = useState<HitsEnum[][]>(defaultHits);
   const [playerHits, setPlayerHits] = useState<HitsEnum[][]>(defaultHits);
   const [placedShips, setPlacedShips] = useState<PlacedShip[]>([]);
+  const [enemyShips, setEnemyShips] = useState<PlacedShip[]>([]);
   const [gameEndPopup, setGameEndPopup] = useState<null | "A" | "B">(null);
   const [showHomeButton, setShowHomeButton] = useState(false);
   const [incrementReady, setIncrementReady] = useState(false);
@@ -271,9 +278,14 @@ function GameController() {
           }
         });
 
-        newSocket.on("game-end", (player: "A" | "B") => {
+        newSocket.on("game-end", (endData: EndDataType) => {
           addToast("The game has ended! GG");
-          setGameEndPopup(player);
+          setGameEndPopup(endData.player);
+          setEnemyShips(
+            playerRef.current === "A"
+              ? endData.playerBShips
+              : endData.playerAShips
+          );
         });
       })
       .catch((error) => {
@@ -390,6 +402,7 @@ function GameController() {
           playerHits={playerHits}
           enemyHits={enemyHits}
           showHomeButton={showHomeButton}
+          enemyShips={enemyShips}
         />
       ) : (
         <Lobby

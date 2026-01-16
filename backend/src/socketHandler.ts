@@ -173,7 +173,7 @@ export function setupSocketHandlers(
           io.to(lobbyId).emit("hit", { cell, player });
         } else if (attackResult.sunk) {
           console.log(`${attackResult.shipName} has been sunk!`);
-          //emit sunk event here
+
           const currentSunks: number[] = currentSunksStr
             ? JSON.parse(currentSunksStr)
             : [];
@@ -193,7 +193,22 @@ export function setupSocketHandlers(
 
           //game end
           if (currentSunks.length === 5) {
-            io.to(lobbyId).emit("game-end", player);
+            //error handling for these redis later
+            const playerAShips = await redisClient.hGet(
+              `lobby:${lobbyId}`,
+              "playerAShips"
+            );
+
+            const playerBShips = await redisClient.hGet(
+              `lobby:${lobbyId}`,
+              "playerBShips"
+            );
+
+            io.to(lobbyId).emit("game-end", {
+              playerAShips: JSON.parse(playerAShips as string),
+              playerBShips: JSON.parse(playerBShips as string),
+              player,
+            });
             //clean redis ofc
             await redisClient.del(`lobby:${lobbyId}`);
             return;

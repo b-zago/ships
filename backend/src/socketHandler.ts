@@ -2,21 +2,29 @@ import type { DefaultEventsMap, Server } from "socket.io";
 import { getLobbyTokens, redisClient, validateToken } from "./redis.js";
 import type { Hit, PlacedShip } from "./types.js";
 import { verifyAttack } from "./util.js";
+import { safeRedisOperation, strictRedisOperation } from "./redis-utils.js";
 
 const lobbyTimers = new Map<string, NodeJS.Timeout>();
 const DISCONNECT_TIMEOUT = 60000; // 60 seconds
 
 const connectedUsers = new Map<string, string>();
 
+// Helper function to clear lobby timer
+function clearLobbyTimer(lobbyId: string) {
+  if (lobbyTimers.has(lobbyId)) {
+    clearTimeout(lobbyTimers.get(lobbyId)!);
+    lobbyTimers.delete(lobbyId);
+  }
+}
+
 export function setupSocketHandlers(
-  io: Server<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>
+  io: Server<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>,
 ) {
-  // Middleware
-  io.use((socket, next) => {
+  io.use(async (socket, next) => {
     // Parse cookies
     const cookies = socket.handshake.headers.cookie;
     const parsedCookies = Object.fromEntries(
-      cookies?.split("; ").map((c) => c.split("=")) || []
+      cookies?.split("; ").map((c) => c.split("=")) || [],
     );
 
     const token = parsedCookies.token;
@@ -28,7 +36,7 @@ export function setupSocketHandlers(
     }
 
     // Check if token is valid (check against your lobbies/database)
-    const isValid = validateToken(token, lobbyId); // Your validation logic
+    const isValid = await validateToken(lobbyId, token); // Added await
 
     if (!isValid) {
       return next(new Error("Invalid token"));
@@ -70,12 +78,19 @@ export function setupSocketHandlers(
     console.log("------------------------------------");
     console.log("SOCKETS IN LOBBY:", socketsInRoom);
 
-    // If we now have 2 players, cancel any existing timer
-    if (socketsInRoom.length === 2 && lobbyTimers.has(lobbyId)) {
-      console.log(`Cancelling disconnect timer for lobby ${lobbyId}`);
-      clearTimeout(lobbyTimers.get(lobbyId)!);
-      lobbyTimers.delete(lobbyId);
-      io.to(lobbyId).emit("timer-cancelled");
+    // If we now have 2 players, cancel any existing timer and refresh lobby TTL
+    if (socketsInRoom.length === 2) {
+      if (lobbyTimers.has(lobbyId)) {
+        console.log(`Cancelling disconnect timer for lobby ${lobbyId}`);
+        clearLobbyTimer(lobbyId);
+        io.to(lobbyId).emit("timer-cancelled");
+      }
+
+      // Refresh the lobby TTL when both players are connected
+      await safeRedisOperation(
+        async () => await redisClient.expire(`lobby:${lobbyId}`, 3600),
+        "Failed to refresh lobby TTL",
+      );
     }
 
     // Determine if this is playerA or playerB
@@ -95,36 +110,56 @@ export function setupSocketHandlers(
 
     // Handle ship placement
     socket.on("place-ships", async (ships: PlacedShip[]) => {
-      const isPreparation = await redisClient.hGet(
-        `lobby:${lobbyId}`,
-        "preparation"
+      const isPreparation = await safeRedisOperation(
+        async () => await redisClient.hGet(`lobby:${lobbyId}`, "preparation"),
+        "Failed to get preparation status",
       );
 
       if (isPreparation === "0") {
         //ships already placed
+        socket.emit("error", "Ships already placed");
         return;
       }
       //validate if correct ships here
       // Save ships to Redis if correct
-      await redisClient.hSet(
-        `lobby:${lobbyId}`,
-        `${playerPrefix}Ships`,
-        JSON.stringify(ships)
-      );
+      try {
+        await strictRedisOperation(async () => {
+          await redisClient.hSet(
+            `lobby:${lobbyId}`,
+            `${playerPrefix}Ships`,
+            JSON.stringify(ships),
+          );
 
-      await redisClient.hSet(`lobby:${lobbyId}`, `${playerPrefix}Ready`, "1");
+          await redisClient.hSet(
+            `lobby:${lobbyId}`,
+            `${playerPrefix}Ready`,
+            "1",
+          );
+        }, "Failed to save ship placement");
+      } catch (error) {
+        socket.emit("error", "Failed to save ship placement");
+        return;
+      }
+
       // Update lobby status if both players ready
-      const isEnemyReady = await redisClient.hGet(
-        `lobby:${lobbyId}`,
-        `${enemyPrefix}Ready`
+      const isEnemyReady = await safeRedisOperation(
+        async () =>
+          await redisClient.hGet(`lobby:${lobbyId}`, `${enemyPrefix}Ready`),
+        "Failed to get enemy ready status",
       );
 
       if (isEnemyReady === "1") {
-        await redisClient.hSet(`lobby:${lobbyId}`, "preparation", "0");
-        await redisClient.hSet(`lobby:${lobbyId}`, "playerTurn", "A");
-        io.to(lobbyId).emit("set-turn", "A");
-        io.to(lobbyId).emit("start-game");
-        console.log("start game!");
+        try {
+          await strictRedisOperation(async () => {
+            await redisClient.hSet(`lobby:${lobbyId}`, "preparation", "0");
+            await redisClient.hSet(`lobby:${lobbyId}`, "playerTurn", "A");
+          }, "Failed to start game");
+          io.to(lobbyId).emit("set-turn", "A");
+          io.to(lobbyId).emit("start-game");
+          console.log("start game!");
+        } catch (error) {
+          socket.emit("error", "Failed to start game");
+        }
       } else {
         io.to(lobbyId).emit("playerReady");
       }
@@ -134,105 +169,152 @@ export function setupSocketHandlers(
     socket.on("attack", async (cell: Hit) => {
       // Process attack
       // Emit result to both players
-      const currentTurn = await redisClient.hGet(
-        `lobby:${lobbyId}`,
-        "playerTurn"
+      const currentTurn = await safeRedisOperation(
+        async () => await redisClient.hGet(`lobby:${lobbyId}`, "playerTurn"),
+        "Failed to get current turn",
       );
 
       console.log("player::", player);
       console.log("turn::", currentTurn);
 
-      if (player === currentTurn) {
-        //this all also needs errors handling later lol
-        const currentHitsStr = await redisClient.hGet(
-          `lobby:${lobbyId}`,
-          `${playerPrefix}Hits`
-        );
+      if (player !== currentTurn) {
+        socket.emit("error", "Not your turn");
+        return;
+      }
 
-        const currentSunksStr = await redisClient.hGet(
-          `lobby:${lobbyId}`,
-          `${enemyPrefix}Sunk`
-        );
+      const currentHitsStr = await safeRedisOperation(
+        async () =>
+          await redisClient.hGet(`lobby:${lobbyId}`, `${playerPrefix}Hits`),
+        "Failed to get current hits",
+      );
 
-        const attackResult = await verifyAttack(
-          lobbyId,
-          cell,
-          currentHitsStr as string, //HANDLE PROPERLY LATER
-          enemyPrefix
-        );
+      if (currentHitsStr === null) {
+        socket.emit("error", "Failed to get current hits");
+        return;
+      }
 
-        if (!attackResult.valid) {
-          console.log(`Invalid attack: ${attackResult.error}`);
-          return;
-          //emit error event here
-        }
+      const currentSunksStr = await safeRedisOperation(
+        async () =>
+          await redisClient.hGet(`lobby:${lobbyId}`, `${enemyPrefix}Sunk`),
+        "Failed to get current sunks",
+      );
 
-        if (attackResult.hit && !attackResult.sunk) {
-          console.log(`Hit ${attackResult.shipName}!`);
-          //emit hit event here
-          io.to(lobbyId).emit("hit", { cell, player });
-        } else if (attackResult.sunk) {
-          console.log(`${attackResult.shipName} has been sunk!`);
+      if (currentSunksStr === null) {
+        socket.emit("error", "Failed to get current sunks");
+        return;
+      }
 
-          const currentSunks: number[] = currentSunksStr
-            ? JSON.parse(currentSunksStr)
-            : [];
+      const attackResult = await verifyAttack(
+        lobbyId,
+        cell,
+        currentHitsStr,
+        enemyPrefix,
+      );
 
-          currentSunks.push(attackResult.shipId!); //fix types here later
+      if (!attackResult.valid) {
+        console.log(`Invalid attack: ${attackResult.error}`);
+        socket.emit("error", attackResult.error || "Invalid attack");
+        return;
+      }
 
+      // Save the hit first (common for all attack outcomes)
+      const currentHits: Hit[] = currentHitsStr
+        ? JSON.parse(currentHitsStr)
+        : [];
+      currentHits.push(cell);
+
+      try {
+        await strictRedisOperation(async () => {
           await redisClient.hSet(
             `lobby:${lobbyId}`,
-            `${enemyPrefix}Sunk`,
-            JSON.stringify(currentSunks)
+            `${playerPrefix}Hits`,
+            JSON.stringify(currentHits),
           );
-          io.to(lobbyId).emit("sunk", {
-            ship: attackResult.shipName,
-            shipCells: attackResult.shipCells,
-            player,
-          });
+        }, "Failed to save hit");
+      } catch (error) {
+        socket.emit("error", "Failed to save hit");
+        return;
+      }
 
-          //game end
-          if (currentSunks.length === 5) {
-            //error handling for these redis later
-            const playerAShips = await redisClient.hGet(
-              `lobby:${lobbyId}`,
-              "playerAShips"
-            );
+      if (attackResult.hit && !attackResult.sunk) {
+        console.log(`Hit ${attackResult.shipName}!`);
+        io.to(lobbyId).emit("hit", { cell, player });
+      } else if (attackResult.sunk) {
+        console.log(`${attackResult.shipName} has been sunk!`);
 
-            const playerBShips = await redisClient.hGet(
-              `lobby:${lobbyId}`,
-              "playerBShips"
-            );
-
-            io.to(lobbyId).emit("game-end", {
-              playerAShips: JSON.parse(playerAShips as string),
-              playerBShips: JSON.parse(playerBShips as string),
-              player,
-            });
-            //clean redis ofc
-            await redisClient.del(`lobby:${lobbyId}`);
-            return;
-          }
-        } else {
-          console.log("Miss!");
-          //emit miss event here
-          io.to(lobbyId).emit("miss", { cell, player });
-        }
-        //this is already done in verifyAttack - optimize later
-        const currentHits: Hit[] = currentHitsStr
-          ? JSON.parse(currentHitsStr)
+        const currentSunks: number[] = currentSunksStr
+          ? JSON.parse(currentSunksStr)
           : [];
 
-        currentHits.push(cell);
+        currentSunks.push(attackResult.shipId!);
 
-        await redisClient.hSet(
-          `lobby:${lobbyId}`,
-          `${playerPrefix}Hits`,
-          JSON.stringify(currentHits)
-        );
+        try {
+          await strictRedisOperation(async () => {
+            await redisClient.hSet(
+              `lobby:${lobbyId}`,
+              `${enemyPrefix}Sunk`,
+              JSON.stringify(currentSunks),
+            );
+          }, "Failed to update sunk ships");
+        } catch (error) {
+          socket.emit("error", "Failed to update sunk ships");
+          return;
+        }
 
-        await redisClient.hSet(`lobby:${lobbyId}`, "playerTurn", enemyPlayer);
-        io.to(lobbyId).emit("set-turn", enemyPlayer);
+        io.to(lobbyId).emit("sunk", {
+          ship: attackResult.shipName,
+          shipCells: attackResult.shipCells,
+          player,
+        });
+
+        //game end
+        if (currentSunks.length === 5) {
+          const playerAShips = await safeRedisOperation(
+            async () =>
+              await redisClient.hGet(`lobby:${lobbyId}`, "playerAShips"),
+            "Failed to get player A ships",
+          );
+
+          const playerBShips = await safeRedisOperation(
+            async () =>
+              await redisClient.hGet(`lobby:${lobbyId}`, "playerBShips"),
+            "Failed to get player B ships",
+          );
+
+          if (playerAShips && playerBShips) {
+            io.to(lobbyId).emit("game-end", {
+              playerAShips: JSON.parse(playerAShips),
+              playerBShips: JSON.parse(playerBShips),
+              player,
+            });
+          }
+
+          // Clear any existing timer for this lobby
+          clearLobbyTimer(lobbyId);
+
+          // Clean up Redis
+          await safeRedisOperation(
+            async () => await redisClient.del(`lobby:${lobbyId}`),
+            "Failed to delete lobby",
+          );
+          return;
+        }
+      } else {
+        console.log("Miss!");
+        io.to(lobbyId).emit("miss", { cell, player });
+
+        try {
+          await strictRedisOperation(async () => {
+            await redisClient.hSet(
+              `lobby:${lobbyId}`,
+              "playerTurn",
+              enemyPlayer,
+            );
+          }, "Failed to update turn");
+          io.to(lobbyId).emit("set-turn", enemyPlayer);
+        } catch (error) {
+          socket.emit("error", "Failed to update turn");
+        }
       }
     });
 
@@ -246,13 +328,19 @@ export function setupSocketHandlers(
         connectedUsers.delete(token);
       }
 
-      const isPreparation = await redisClient.hGet(
-        `lobby:${lobbyId}`,
-        "preparation"
+      const isPreparation = await safeRedisOperation(
+        async () => await redisClient.hGet(`lobby:${lobbyId}`, "preparation"),
+        "Failed to get preparation status",
       );
 
       if (isPreparation === "1") {
-        await redisClient.hSet(`lobby:${lobbyId}`, `${playerPrefix}Ready`, "0");
+        await safeRedisOperation(async () => {
+          await redisClient.hSet(
+            `lobby:${lobbyId}`,
+            `${playerPrefix}Ready`,
+            "0",
+          );
+        }, "Failed to reset player ready status");
       }
 
       // Check how many players remain after this disconnect
@@ -265,8 +353,11 @@ export function setupSocketHandlers(
         const timer = setTimeout(async () => {
           console.log(`Lobby ${lobbyId} expired due to disconnection`);
 
-          await redisClient.del(`lobby:${lobbyId}`);
-          lobbyTimers.delete(lobbyId);
+          await safeRedisOperation(
+            async () => await redisClient.del(`lobby:${lobbyId}`),
+            "Failed to delete lobby on timeout",
+          );
+          clearLobbyTimer(lobbyId);
 
           const sockets = await io.in(lobbyId).fetchSockets();
           sockets.forEach((s) => s.disconnect(true));

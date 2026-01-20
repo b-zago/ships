@@ -1,12 +1,13 @@
 import { redisClient } from "./redis.js";
 import type { AttackResult, Hit, HitsEnumType, PlacedShip } from "./types.js";
 import { HitsEnum } from "./types.js";
+import { safeRedisOperation } from "./redis-utils.js";
 
 export async function verifyAttack(
   lobbyId: string,
   target: Hit,
   hitsStr: string,
-  defenderPrefix: string
+  defenderPrefix: string,
 ): Promise<AttackResult> {
   // Validate grid bounds (10x10 grid, 0-indexed)
   if (target.row < 0 || target.row > 9 || target.col < 0 || target.col > 9) {
@@ -18,10 +19,10 @@ export async function verifyAttack(
   }
 
   // Get defender's ships
-
-  const shipsStr = await redisClient.hGet(
-    `lobby:${lobbyId}`,
-    `${defenderPrefix}Ships`
+  const shipsStr = await safeRedisOperation(
+    async () =>
+      await redisClient.hGet(`lobby:${lobbyId}`, `${defenderPrefix}Ships`),
+    "Failed to get defender ships",
   );
 
   const defenderShips: PlacedShip[] = shipsStr ? JSON.parse(shipsStr) : [];
@@ -29,7 +30,7 @@ export async function verifyAttack(
 
   // Check if this cell was already attacked
   const alreadyAttacked = attackerHits.some(
-    (hit) => hit.row === target.row && hit.col === target.col
+    (hit) => hit.row === target.row && hit.col === target.col,
   );
 
   if (alreadyAttacked) {
@@ -43,14 +44,14 @@ export async function verifyAttack(
   // Check if target hits any ship
   for (const ship of defenderShips) {
     const isHit = ship.cells.some(
-      (cell) => cell.row === target.row && cell.col === target.col
+      (cell) => cell.row === target.row && cell.col === target.col,
     );
 
     if (isHit) {
       // Check if ship is sunk (all cells have been hit)
       const allHits = [...attackerHits, target];
       const shipHitCount = ship.cells.filter((cell) =>
-        allHits.some((hit) => hit.row === cell.row && hit.col === cell.col)
+        allHits.some((hit) => hit.row === cell.row && hit.col === cell.col),
       ).length;
 
       const isSunk = shipHitCount === ship.cells.length;
@@ -72,10 +73,10 @@ export async function verifyAttack(
 export function generateHitBoard(
   playerHits: Hit[],
   enemyShips: PlacedShip[],
-  enemySunks: number[]
+  enemySunks: number[],
 ) {
   const hitsArray = Array.from({ length: 10 }, () =>
-    Array.from<HitsEnumType>({ length: 10 }).fill(HitsEnum.Default)
+    Array.from<HitsEnumType>({ length: 10 }).fill(HitsEnum.Default),
   );
 
   for (const hit of playerHits) {
@@ -90,7 +91,7 @@ export function generateHitBoard(
           }
 
           shipHit = true;
-          break;
+          break shipsLoop;
         }
       }
     }

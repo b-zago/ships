@@ -20,7 +20,7 @@ export const HitsEnum = {
 export type HitsEnum = (typeof HitsEnum)[keyof typeof HitsEnum];
 
 const defaultHits = Array.from({ length: 10 }, () =>
-  Array.from<HitsEnum>({ length: 10 }).fill(HitsEnum.Default)
+  Array.from<HitsEnum>({ length: 10 }).fill(HitsEnum.Default),
 );
 
 interface JoinLobbyResponseBase {
@@ -196,7 +196,7 @@ function GameController() {
           addToast(
             `Player has disconnected. The lobby will abort in: ${
               time / 1000
-            } seconds`
+            } seconds`,
           );
         });
 
@@ -211,6 +211,10 @@ function GameController() {
 
         newSocket.on("set-player", (player: "A" | "B") => {
           playerRef.current = player;
+        });
+
+        newSocket.on("error", (message: string) => {
+          addToast(`Error: ${message}`);
         });
 
         newSocket.on("playerReady", () => {
@@ -284,7 +288,7 @@ function GameController() {
           setEnemyShips(
             playerRef.current === "A"
               ? endData.playerBShips
-              : endData.playerAShips
+              : endData.playerAShips,
           );
         });
       })

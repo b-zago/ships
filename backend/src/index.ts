@@ -18,6 +18,7 @@ import {
 } from "./redis.js";
 import { setupSocketHandlers } from "./socketHandler.js";
 import { generateHitBoard } from "./util.js";
+import { safeRedisOperation } from "./redis-utils.js";
 
 const isProd = process.env.PROD === "0" ? false : true;
 
@@ -45,7 +46,7 @@ if (!isProd) {
     cors({
       origin: "http://localhost:5173",
       credentials: true,
-    })
+    }),
   );
 }
 
@@ -55,24 +56,29 @@ app.use(express.json());
 app.use((req, res, next) => {
   res.setHeader(
     "Cache-Control",
-    "no-store, no-cache, must-revalidate, private"
+    "no-store, no-cache, must-revalidate, private",
   );
   next();
 });
 
 async function generateLobbyId() {
-  let lobbyId;
+  let lobbyId: string;
   const maxAttempts = 5;
 
-  for (let i = 0; i < maxAttempts; i++) {
+  for (let i = 0; i <= maxAttempts; i++) {
     lobbyId = crypto.randomBytes(8).toString("hex");
 
     //if id is unique - break
-    if (!(await redisClient.exists(`lobby:${lobbyId}`))) {
+    const exists = await safeRedisOperation(
+      async () => await redisClient.exists(`lobby:${lobbyId}`),
+      "Failed to check lobby existence",
+    );
+
+    if (!exists) {
       return lobbyId;
     }
 
-    if (i === 5) {
+    if (i === maxAttempts) {
       throw new Error("Failed to generate unique lobby ID");
     }
   }
@@ -139,7 +145,10 @@ app.get("/api/lobby/join/:lobbyId", async (req, res) => {
 
   console.log("cookies token:", token);
 
-  const isLobbyReal = await redisClient.exists(`lobby:${lobbyId}`);
+  const isLobbyReal = await safeRedisOperation(
+    async () => await redisClient.exists(`lobby:${lobbyId}`),
+    "Failed to check lobby existence",
+  );
 
   if (!isLobbyReal) {
     return res.json({
@@ -167,12 +176,12 @@ app.get("/api/lobby/join/:lobbyId", async (req, res) => {
           playerHits: generateHitBoard(
             gameInfo.playerBHits,
             gameInfo.playerAShips,
-            gameInfo.playerASunk
+            gameInfo.playerASunk,
           ),
           enemyHits: generateHitBoard(
             gameInfo.playerAHits,
             gameInfo.playerBShips,
-            gameInfo.playerBSunk
+            gameInfo.playerBSunk,
           ),
           playerTurn: gameInfo.playerTurn,
           player: "A",
@@ -185,12 +194,12 @@ app.get("/api/lobby/join/:lobbyId", async (req, res) => {
           playerHits: generateHitBoard(
             gameInfo.playerAHits,
             gameInfo.playerBShips,
-            gameInfo.playerBSunk
+            gameInfo.playerBSunk,
           ),
           enemyHits: generateHitBoard(
             gameInfo.playerBHits,
             gameInfo.playerAShips,
-            gameInfo.playerASunk
+            gameInfo.playerASunk,
           ),
           playerTurn: gameInfo.playerTurn,
           player: "B",

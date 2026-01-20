@@ -7,15 +7,17 @@ import { Anchor, Users, Zap } from "lucide-react";
 export default function ShipsLanding() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [gameUrl, setGameUrl] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   const generateGameLobby = () => {
     setIsGenerating(true);
+    setError(null);
 
     axios
       .post<{ url: string }>(
         apiURL + "/api/lobby/create",
         {},
-        { withCredentials: true }
+        { withCredentials: true },
       )
       .then((response) => {
         console.log("Success:", response.data);
@@ -26,6 +28,11 @@ export default function ShipsLanding() {
       })
       .catch((error) => {
         console.error("Error:", error);
+        setError(
+          error.response?.data?.error ||
+            "Failed to create lobby. Please try again.",
+        );
+        setIsGenerating(false);
       });
   };
 
@@ -84,6 +91,14 @@ export default function ShipsLanding() {
             </div>
           </div>
 
+          {/* Error Display */}
+          {error && (
+            <div className="mb-6 bg-red-900/30 border border-red-500 text-red-200 p-4 rounded-lg max-w-2xl mx-auto">
+              <p className="font-semibold">Error</p>
+              <p className="text-sm">{error}</p>
+            </div>
+          )}
+
           {/* CTA Button */}
           {!gameUrl ? (
             <button
@@ -135,7 +150,10 @@ export default function ShipsLanding() {
                 </button>
               </div>
               <button
-                onClick={() => setGameUrl("")}
+                onClick={() => {
+                  setGameUrl("");
+                  setError(null);
+                }}
                 className="mt-6 text-sm underline text-slate-400 hover:text-slate-300 transition-colors"
               >
                 Create another lobby

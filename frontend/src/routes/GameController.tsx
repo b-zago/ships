@@ -108,6 +108,7 @@ function GameController() {
   const playerRef = useRef("");
   const toastIdCounter = useRef(0);
   const socketRef = useRef<SocketIOClient.Socket | null>(null);
+  const disconnectTimerIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     axios
@@ -193,11 +194,23 @@ function GameController() {
         //-----------IO DISCONNECTS-----------
 
         newSocket.on("disconnect-timer-started", (time: number) => {
-          addToast(
-            `Player has disconnected. The lobby will abort in: ${
-              time / 1000
-            } seconds`,
+          const toastId = addToast(
+            `Player has disconnected. The lobby will abort in: ${time / 1000} seconds`,
+            time,
           );
+
+          disconnectTimerIdRef.current = toastId;
+        });
+
+        newSocket.on("timer-cancelled", () => {
+          const id = disconnectTimerIdRef.current;
+
+          if (id) {
+            removeToast(id);
+            disconnectTimerIdRef.current = null;
+          }
+
+          addToast("Player reconnected! Game continues.", 3000);
         });
 
         //---------------------------------
@@ -213,8 +226,8 @@ function GameController() {
           playerRef.current = player;
         });
 
-        newSocket.on("error", (message: string) => {
-          addToast(`Error: ${message}`);
+        newSocket.on("error", (error: { message: string }) => {
+          addToast(`Error: ${error.message}`);
         });
 
         newSocket.on("playerReady", () => {
@@ -314,9 +327,10 @@ function GameController() {
     socketRef.current?.emit("attack", { row, col });
   };
 
-  const addToast = (message: string, time: number = 3000) => {
+  const addToast = (message: string, time: number = 3000): string => {
     const id = `${toastIdCounter.current++}`;
     setToasts((prev) => [...prev, { id, message, time }]);
+    return id;
   };
 
   const removeToast = useCallback((id: string) => {

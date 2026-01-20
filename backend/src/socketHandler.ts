@@ -1,7 +1,8 @@
 import type { DefaultEventsMap, Server } from "socket.io";
 import { getLobbyTokens, redisClient, validateToken } from "./redis.js";
 import type { Hit, PlacedShip } from "./types.js";
-import { verifyAttack } from "./util.js";
+import { validateShipPlacement, verifyAttack } from "./util.js";
+
 import { safeRedisOperation, strictRedisOperation } from "./redis-utils.js";
 
 const lobbyTimers = new Map<string, NodeJS.Timeout>();
@@ -117,10 +118,19 @@ export function setupSocketHandlers(
 
       if (isPreparation === "0") {
         //ships already placed
-        socket.emit("error", "Ships already placed");
+        socket.emit("error", { message: "Ships already placed" });
         return;
       }
-      //validate if correct ships here
+
+      // Validate ship placement
+      const validation = validateShipPlacement(ships);
+      if (!validation.valid) {
+        socket.emit("error", {
+          message: validation.error || "Invalid ship placement",
+        });
+        return;
+      }
+
       // Save ships to Redis if correct
       try {
         await strictRedisOperation(async () => {
@@ -137,7 +147,7 @@ export function setupSocketHandlers(
           );
         }, "Failed to save ship placement");
       } catch (error) {
-        socket.emit("error", "Failed to save ship placement");
+        socket.emit("error", { message: "Failed to save ship placement" });
         return;
       }
 
@@ -158,7 +168,7 @@ export function setupSocketHandlers(
           io.to(lobbyId).emit("start-game");
           console.log("start game!");
         } catch (error) {
-          socket.emit("error", "Failed to start game");
+          socket.emit("error", { message: "Failed to start game" });
         }
       } else {
         io.to(lobbyId).emit("playerReady");
@@ -178,7 +188,7 @@ export function setupSocketHandlers(
       console.log("turn::", currentTurn);
 
       if (player !== currentTurn) {
-        socket.emit("error", "Not your turn");
+        socket.emit("error", { message: "Not your turn" });
         return;
       }
 
@@ -189,7 +199,7 @@ export function setupSocketHandlers(
       );
 
       if (currentHitsStr === null) {
-        socket.emit("error", "Failed to get current hits");
+        socket.emit("error", { message: "Failed to get current hits" });
         return;
       }
 
@@ -200,7 +210,7 @@ export function setupSocketHandlers(
       );
 
       if (currentSunksStr === null) {
-        socket.emit("error", "Failed to get current sunks");
+        socket.emit("error", { message: "Failed to get current sunks" });
         return;
       }
 
@@ -213,7 +223,9 @@ export function setupSocketHandlers(
 
       if (!attackResult.valid) {
         console.log(`Invalid attack: ${attackResult.error}`);
-        socket.emit("error", attackResult.error || "Invalid attack");
+        socket.emit("error", {
+          message: attackResult.error || "Invalid attack",
+        });
         return;
       }
 
@@ -232,7 +244,7 @@ export function setupSocketHandlers(
           );
         }, "Failed to save hit");
       } catch (error) {
-        socket.emit("error", "Failed to save hit");
+        socket.emit("error", { message: "Failed to save hit" });
         return;
       }
 
@@ -257,7 +269,7 @@ export function setupSocketHandlers(
             );
           }, "Failed to update sunk ships");
         } catch (error) {
-          socket.emit("error", "Failed to update sunk ships");
+          socket.emit("error", { message: "Failed to update sunk ships" });
           return;
         }
 
@@ -313,7 +325,7 @@ export function setupSocketHandlers(
           }, "Failed to update turn");
           io.to(lobbyId).emit("set-turn", enemyPlayer);
         } catch (error) {
-          socket.emit("error", "Failed to update turn");
+          socket.emit("error", { message: "Failed to update turn" });
         }
       }
     });

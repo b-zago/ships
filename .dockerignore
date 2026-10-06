@@ -1,0 +1,14 @@
+**/node_modules
+**/npm-debug.log
+.git
+.gitignore
+**/.env
+**/.env.local
+**/.env.*.local
+**/.DS_Store
+**/*.log
+backend/dist
+backend/dev-docker
+backend/prod-docker
+frontend
+**/coverage

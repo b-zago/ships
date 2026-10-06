@@ -1,0 +1,15 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [main, staging]
+
+jobs:
+  deploy:
+    permissions:
+      packages: write
+      contents: write
+    uses: b-zago/actions/.github/workflows/box-deployment.yml@v1
+    with:
+      imageName: server
+    secrets: inherit

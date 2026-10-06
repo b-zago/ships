@@ -19,6 +19,7 @@ import {
 import { setupSocketHandlers } from "./socketHandler.js";
 import { generateHitBoard } from "./util.js";
 import { safeRedisOperation } from "./redis-utils.js";
+import { metricsMiddleware, startMetricsServer } from "./metrics.js";
 
 const isProd = process.env.PROD === "0" ? false : true;
 
@@ -53,12 +54,29 @@ if (!isProd) {
 app.use(cookieParser());
 app.use(express.json());
 
+// Time every request for Prometheus (metrics are exposed on a separate port)
+app.use(metricsMiddleware);
+
 app.use((req, res, next) => {
   res.setHeader(
     "Cache-Control",
     "no-store, no-cache, must-revalidate, private",
   );
   next();
+});
+
+// Liveness probe - process is up and able to serve requests
+app.get("/healthz", (req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
+// Readiness probe - dependencies (Redis) are connected and ready
+app.get("/ready", (req, res) => {
+  if (redisClient.isReady) {
+    return res.status(200).json({ status: "ready" });
+  }
+
+  res.status(503).json({ status: "not ready", reason: "redis unavailable" });
 });
 
 async function generateLobbyId() {
@@ -265,3 +283,6 @@ setupSocketHandlers(io);
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
+// Expose Prometheus /metrics on its own port (default 9000)
+startMetricsServer();

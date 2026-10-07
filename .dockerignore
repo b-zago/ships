@@ -8,7 +8,8 @@
 **/.DS_Store
 **/*.log
 backend/dist
+backend/public
 backend/dev-docker
 backend/prod-docker
-frontend
+frontend/dist
 **/coverage
